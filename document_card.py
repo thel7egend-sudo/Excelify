@@ -14,16 +14,6 @@ class DocumentCard(QFrame):
         self.document = document
 
         self.setFixedSize(160, 120)
-        self.setStyleSheet("""
-            QFrame {
-                border-radius: 8px;
-                border: 1px solid #bdbdbd;
-            }
-            QFrame:hover {
-                border: 1px solid #8f8f8f;
-            }
-        """)
-
 
         self.label = QLabel(document.name)
         self.label.setAlignment(Qt.AlignCenter)
@@ -31,9 +21,37 @@ class DocumentCard(QFrame):
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.label)
+        self.apply_dark_mode(False)
 
     def update_name(self):
         self.label.setText(self.document.name)
+
+    def apply_dark_mode(self, enabled: bool):
+        if not enabled:
+            self.setStyleSheet("""
+                QFrame {
+                    background: #f7f7f7;
+                    border-radius: 8px;
+                    border: 1px solid #bdbdbd;
+                }
+                QFrame:hover {
+                    border: 1px solid #8f8f8f;
+                }
+            """)
+            self.label.setStyleSheet("")
+            return
+
+        self.setStyleSheet("""
+            QFrame {
+                background: #1f1f1f;
+                border-radius: 8px;
+                border: 1px solid #3a3a3a;
+            }
+            QFrame:hover {
+                border: 1px solid #5a5a5a;
+            }
+        """)
+        self.label.setStyleSheet("color: #e6e6e6;")
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:

@@ -39,7 +39,7 @@ class TopChrome(QWidget):
 
         # ---------- ROW 2: SEARCH ----------
         row2 = QWidget()
-        row2.setStyleSheet("background:#d6d6d6;")
+        row2.setObjectName("searchRow")
         row2_layout = QHBoxLayout(row2)
         row2_layout.setContentsMargins(16, 6, 16, 6)
 
@@ -58,6 +58,7 @@ class TopChrome(QWidget):
         layout.addWidget(row1)
         layout.addWidget(row2)
         layout.addWidget(self.search_results)
+        self.apply_dark_mode(False)
     def update_search_results(self, documents, text):
         self.search_results.clear()
 
@@ -85,7 +86,46 @@ class TopChrome(QWidget):
         self.search_results.hide()
     def apply_dark_mode(self, enabled: bool):
         if not enabled:
-            self.setStyleSheet("")
+            self.setStyleSheet("""
+            QWidget#topChrome {
+                background-color: #f2f2f2;
+                border-bottom: 1px solid #d0d0d0;
+            }
+
+            QWidget#topChrome > QWidget {
+                background-color: #f2f2f2;
+            }
+
+            QWidget#searchRow {
+                background-color: #d6d6d6;
+            }
+
+            QLabel#homeLabel {
+                background-color: #e7e7e7;
+                color: #222222;
+                padding: 6px 14px;
+                border-radius: 10px;
+                font-weight: 600;
+            }
+
+            QLabel#homeLabel:hover {
+                background-color: #dadada;
+            }
+
+            QLineEdit {
+                background-color: #ffffff;
+                color: #222222;
+                border: 1px solid #bdbdbd;
+                padding: 6px;
+                border-radius: 6px;
+            }
+
+            QListWidget {
+                background-color: #ffffff;
+                color: #222222;
+                border: 1px solid #bdbdbd;
+            }
+            """)
             return
 
         self.setStyleSheet("""
@@ -96,6 +136,10 @@ class TopChrome(QWidget):
 
         QWidget#topChrome > QWidget {
             background-color: #1e1e1e;
+        }
+
+        QWidget#searchRow {
+            background-color: #252526;
         }
 
         QLabel#homeLabel {

@@ -85,6 +85,7 @@ class EditorPage(QWidget):
 # ---------- SHEET BAR (UI ONLY) ----------
 
         sheet_bar = QWidget()
+        sheet_bar.setObjectName("sheetBar")
         sheet_bar.setFixedHeight(36)
         sheet_layout = QHBoxLayout(sheet_bar)
         sheet_layout.setContentsMargins(8, 0, 8, 0)
@@ -345,6 +346,13 @@ class EditorPage(QWidget):
             background-color: #333333;
         }
 
+        QWidget#sheetBar QPushButton {
+            background-color: #2b2b2b;
+            color: #e6e6e6;
+            border: 1px solid #3a3a3a;
+            border-radius: 4px;
+        }
+
         /* ===============================
         TABLE GRID
         =============================== */
@@ -374,6 +382,40 @@ class EditorPage(QWidget):
         QTableCornerButton::section {
             background-color: #252526;
             border: 1px solid #3a3a3a;
+        }
+
+        /* ===============================
+        SHEET BAR
+        =============================== */
+        QWidget#sheetBar {
+            background-color: #1e1e1e;
+            border-top: 1px solid #2b2b2b;
+        }
+
+        /* ===============================
+        SCROLLBARS
+        =============================== */
+        QScrollBar:vertical, QScrollBar:horizontal {
+            background: #1e1e1e;
+            height: 10px;
+            width: 10px;
+            margin: 0px;
+        }
+        QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+            background: #3a3a3a;
+            min-height: 24px;
+            min-width: 24px;
+            border-radius: 4px;
+        }
+        QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {
+            background: #4a4a4a;
+        }
+        QScrollBar::add-line:vertical,
+        QScrollBar::sub-line:vertical,
+        QScrollBar::add-line:horizontal,
+        QScrollBar::sub-line:horizontal {
+            height: 0px;
+            width: 0px;
         }
         """)
 

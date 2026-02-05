@@ -41,6 +41,7 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(self.container)
         self.is_grid_dark = False
+        self._apply_app_dark_mode(False)
 
 
 
@@ -231,6 +232,75 @@ class MainWindow(QMainWindow):
         if self.editor:
             self.editor.apply_grid_dark_mode(self.is_grid_dark)
 
+        # home page
+        self.home.apply_dark_mode(self.is_grid_dark)
+
         # top bar (HOME area)
         self.chrome.apply_dark_mode(self.is_grid_dark)
+
+        # global dialogs/menus
+        self._apply_app_dark_mode(self.is_grid_dark)
+
+    def _apply_app_dark_mode(self, enabled: bool):
+        app = QApplication.instance()
+        if not app:
+            return
+
+        if not enabled:
+            app.setPalette(app.style().standardPalette())
+            app.setStyleSheet("")
+            return
+
+        dark_qss = """
+        QToolTip {
+            color: #e6e6e6;
+            background-color: #2b2b2b;
+            border: 1px solid #3a3a3a;
+        }
+
+        QMenu {
+            background-color: #202226;
+            color: #e6e6e6;
+            border: 1px solid #2f3237;
+        }
+        QMenu::item {
+            padding: 6px 24px;
+        }
+        QMenu::item:selected {
+            background-color: #2f343a;
+        }
+
+        QMessageBox, QInputDialog, QFileDialog {
+            background-color: #1f2124;
+            color: #e6e6e6;
+        }
+
+        QLabel {
+            color: #e6e6e6;
+        }
+
+        QLineEdit, QPlainTextEdit, QTextEdit {
+            background-color: #26282c;
+            color: #e6e6e6;
+            border: 1px solid #3a3d42;
+            border-radius: 4px;
+            padding: 4px;
+        }
+
+        QPushButton {
+            background-color: #2a2d31;
+            color: #e6e6e6;
+            border: 1px solid #3a3d42;
+            border-radius: 6px;
+            padding: 6px 10px;
+        }
+        QPushButton:hover {
+            background-color: #343841;
+        }
+        QPushButton:pressed {
+            background-color: #25292f;
+        }
+        """
+
+        app.setStyleSheet(dark_qss)
 
