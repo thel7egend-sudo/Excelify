@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QScrollArea, QGridLayout, QPushButton
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QScrollArea, QGridLayout, QPushButton, QFrame
 from document_card import DocumentCard
 from document import Document
 from PySide6.QtCore import Qt, Signal
@@ -24,6 +24,7 @@ class HomePage(QWidget):
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         # LEFT COLUMN (import area)
         left = QWidget()
@@ -80,6 +81,7 @@ class HomePage(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setWidget(container)
         scroll.setObjectName("homeScroll")
+        scroll.setFrameShape(QFrame.NoFrame)
 
         layout.addWidget(left)
         layout.addWidget(scroll)
@@ -192,6 +194,19 @@ class HomePage(QWidget):
 
             QScrollArea#homeScroll {
                 background: #f2f2f2;
+                border: none;
+            }
+
+            QScrollArea#homeScroll::corner {
+                background: #f2f2f2;
+            }
+
+            QScrollArea#homeScroll > QWidget {
+                background: #f2f2f2;
+            }
+
+            QScrollArea#homeScroll > QWidget > QWidget {
+                background: #f2f2f2;
             }
 
             QPushButton {
@@ -231,6 +246,10 @@ class HomePage(QWidget):
             QScrollBar::handle:vertical:hover {
                 background: #7f7f7f;
             }
+            QScrollBar::add-page:vertical,
+            QScrollBar::sub-page:vertical {
+                background: #e0e0e0;
+            }
             QScrollBar::add-line:vertical,
             QScrollBar::sub-line:vertical {
                 height: 0px;
@@ -248,6 +267,19 @@ class HomePage(QWidget):
             }
 
             QScrollArea#homeScroll {
+                background: #1b1c1f;
+                border: none;
+            }
+
+            QScrollArea#homeScroll::corner {
+                background: #1b1c1f;
+            }
+
+            QScrollArea#homeScroll > QWidget {
+                background: #1b1c1f;
+            }
+
+            QScrollArea#homeScroll > QWidget > QWidget {
                 background: #1b1c1f;
             }
 
@@ -290,6 +322,10 @@ class HomePage(QWidget):
             }
             QScrollBar::handle:vertical:hover {
                 background: #4a4f55;
+            }
+            QScrollBar::add-page:vertical,
+            QScrollBar::sub-page:vertical {
+                background: #1b1c1f;
             }
             QScrollBar::add-line:vertical,
             QScrollBar::sub-line:vertical {

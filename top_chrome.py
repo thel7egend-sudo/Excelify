@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QLineEdit, QListWidget
+    QLabel, QLineEdit, QListWidget, QFrame, QSizePolicy
 )
 
 from PySide6.QtCore import Qt, Signal
@@ -22,6 +22,7 @@ class TopChrome(QWidget):
         row1 = QWidget()
         row1_layout = QHBoxLayout(row1)
         row1_layout.setContentsMargins(16, 8, 16, 8)
+        row1_layout.setSpacing(0)
 
         self.back_label = QLabel("Home")
         self.back_label.setObjectName("homeLabel")
@@ -42,13 +43,18 @@ class TopChrome(QWidget):
         row2.setObjectName("searchRow")
         row2_layout = QHBoxLayout(row2)
         row2_layout.setContentsMargins(16, 6, 16, 6)
+        row2_layout.setSpacing(0)
 
         self.search = QLineEdit()
+        self.search.setObjectName("searchField")
         self.search.setPlaceholderText("Search documents")
         self.search.setFixedWidth(360)
         self.search_results = QListWidget()
+        self.search_results.setObjectName("searchResults")
+        self.search_results.setAutoFillBackground(True)
+        self.search_results.setFrameShape(QFrame.NoFrame)
         self.search_results.setVisible(False)
-        self.search_results.setFixedWidth(360)
+        self.search_results.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.search_results.itemClicked.connect(self._emit_search_result)
 
         row2_layout.addStretch()
@@ -100,6 +106,10 @@ class TopChrome(QWidget):
                 background-color: #d6d6d6;
             }
 
+            QWidget#searchRow > QWidget {
+                background-color: #d6d6d6;
+            }
+
             QLabel#homeLabel {
                 background-color: #e7e7e7;
                 color: #222222;
@@ -112,18 +122,37 @@ class TopChrome(QWidget):
                 background-color: #dadada;
             }
 
-            QLineEdit {
+            QLineEdit#searchField {
                 background-color: #ffffff;
                 color: #222222;
                 border: 1px solid #bdbdbd;
                 padding: 6px;
                 border-radius: 6px;
+                margin: 0px;
             }
 
-            QListWidget {
+            QLineEdit#searchField:focus {
                 background-color: #ffffff;
+                border: 1px solid #9e9e9e;
+            }
+
+            QListWidget#searchResults {
+                background-color: #f2f2f2;
                 color: #222222;
-                border: 1px solid #bdbdbd;
+                border: 1px solid #d0d0d0;
+            }
+
+            QListWidget#searchResults::viewport {
+                background-color: #f2f2f2;
+            }
+
+            QListWidget#searchResults::item {
+                padding: 6px 10px;
+                background-color: transparent;
+            }
+
+            QListWidget#searchResults::item:selected {
+                background-color: #e0e0e0;
             }
             """)
             return
@@ -142,6 +171,10 @@ class TopChrome(QWidget):
             background-color: #252526;
         }
 
+        QWidget#searchRow > QWidget {
+            background-color: #252526;
+        }
+
         QLabel#homeLabel {
             background-color: #2d2d30;
             color: #e6e6e6;
@@ -154,18 +187,37 @@ class TopChrome(QWidget):
             background-color: #3a3a3a;
         }
 
-        QLineEdit {
-            background-color: #252526;
+        QLineEdit#searchField {
+            background-color: #1f2124;
             color: #e6e6e6;
             border: 1px solid #3a3a3a;
             padding: 6px;
             border-radius: 6px;
+            margin: 0px;
         }
 
-        QListWidget {
-            background-color: #252526;
+        QLineEdit#searchField:focus {
+            background-color: #1f2124;
+            border: 1px solid #4a4f55;
+        }
+
+        QListWidget#searchResults {
+            background-color: #1f2124;
             color: #e6e6e6;
-            border: 1px solid #3a3a3a;
+            border: 1px solid #2f3237;
+        }
+
+        QListWidget#searchResults::viewport {
+            background-color: #1f2124;
+        }
+
+        QListWidget#searchResults::item {
+            padding: 6px 10px;
+            background-color: transparent;
+        }
+
+        QListWidget#searchResults::item:selected {
+            background-color: #2b2f35;
         }
         """)
     
