@@ -61,8 +61,13 @@ class TableView(QTableView):
             event.accept()
             return  # ⛔ STOP Qt completely
 
+        if event.button() == Qt.LeftButton:
+            self.setFocus(Qt.MouseFocusReason)
+
         super().mousePressEvent(event)
 
+    def mouseDoubleClickEvent(self, event):
+        super().mouseDoubleClickEvent(event)
         if event.button() == Qt.LeftButton and self.zoom_box:
             self.zoom_box.setFocus(Qt.MouseFocusReason)
             self.zoom_box.selectAll()
