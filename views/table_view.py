@@ -74,12 +74,18 @@ class TableView(QTableView):
 
     def keyPressEvent(self, event):
         if event.matches(QKeySequence.Copy):
-            self._copy_selection_to_clipboard()
-            return
+            index = self.currentIndex()
+            if index.isValid():
+                text = self.model().data(index, Qt.DisplayRole)
+                QApplication.clipboard().setText("" if text is None else str(text))
+                return
 
         if event.matches(QKeySequence.Paste):
-            self._paste_clipboard_to_selection()
-            return
+            index = self.currentIndex()
+            if index.isValid():
+                text = QApplication.clipboard().text()
+                self.model().setData(index, text, Qt.EditRole)
+                return
 
         if self.zoom_box:
             if event.matches(QKeySequence.Paste):
@@ -268,48 +274,3 @@ class TableView(QTableView):
     def set_zoom_box(self, zoom_box):
         self.zoom_box = zoom_box
 
-    def _selected_rect(self):
-        selected = self.selectionModel().selectedIndexes()
-        if not selected:
-            index = self.currentIndex()
-            if not index.isValid():
-                return None
-            return index.row(), index.column(), index.row(), index.column()
-
-        rows = [i.row() for i in selected]
-        cols = [i.column() for i in selected]
-        return min(rows), min(cols), max(rows), max(cols)
-
-    def _copy_selection_to_clipboard(self):
-        rect = self._selected_rect()
-        if rect is None:
-            return
-
-        r1, c1, r2, c2 = rect
-        lines = []
-        for r in range(r1, r2 + 1):
-            row_values = []
-            for c in range(c1, c2 + 1):
-                value = self.model().data(self.model().index(r, c), Qt.DisplayRole)
-                row_values.append("" if value is None else str(value))
-            lines.append("\t".join(row_values))
-
-        QApplication.clipboard().setText("\n".join(lines))
-
-    def _paste_clipboard_to_selection(self):
-        text = QApplication.clipboard().text()
-        if text == "":
-            return
-
-        rect = self._selected_rect()
-        if rect is None:
-            return
-
-        start_row, start_col, _, _ = rect
-        rows = text.splitlines() or [""]
-        for r_offset, row_text in enumerate(rows):
-            cols = row_text.split("\t")
-            for c_offset, value in enumerate(cols):
-                index = self.model().index(start_row + r_offset, start_col + c_offset)
-                if index.isValid():
-                    self.model().setData(index, value, Qt.EditRole)
