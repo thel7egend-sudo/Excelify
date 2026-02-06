@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QTableView
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtCore import QItemSelectionModel
-from PySide6.QtGui import QPainter, QColor
+from PySide6.QtGui import QPainter, QColor, QKeySequence
 
 class TableView(QTableView):
     drag_swap_requested = Signal(object, object)
@@ -32,6 +32,7 @@ class TableView(QTableView):
         self._drag_start_pos = None
         
         self._drag_start_index = None
+        self.zoom_box = None
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
 
@@ -61,6 +62,27 @@ class TableView(QTableView):
             return  # ⛔ STOP Qt completely
 
         super().mousePressEvent(event)
+
+        if event.button() == Qt.LeftButton and self.zoom_box:
+            self.zoom_box.setFocus(Qt.MouseFocusReason)
+            self.zoom_box.selectAll()
+
+    def keyPressEvent(self, event):
+        if self.zoom_box:
+            if event.matches(QKeySequence.Paste):
+                self.zoom_box.setFocus(Qt.OtherFocusReason)
+                self.zoom_box.selectAll()
+                self.zoom_box.paste()
+                return
+
+            text = event.text()
+            if text and not (event.modifiers() & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)):
+                self.zoom_box.setFocus(Qt.OtherFocusReason)
+                self.zoom_box.selectAll()
+                self.zoom_box.insert(text)
+                return
+
+        super().keyPressEvent(event)
 
     def mouseMoveEvent(self, event):
         if self._ghost_active:
@@ -224,6 +246,7 @@ class TableView(QTableView):
     def clear_swap_mode(self):
         self.swap_mode = None
 
-
+    def set_zoom_box(self, zoom_box):
+        self.zoom_box = zoom_box
 
 

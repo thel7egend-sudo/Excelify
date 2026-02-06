@@ -1,3 +1,4 @@
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QPlainTextEdit, QTableView, QApplication, QSizePolicy, QCheckBox, QMessageBox
@@ -169,10 +170,22 @@ class EditorPage(QWidget):
 
 
         self.view.setModel(self.model)
+        self.zoom_box = QLineEdit()
+        self.zoom_box.setPlaceholderText("Zoom box")
+        self.zoom_box.setClearButtonEnabled(True)
+        self._syncing_zoom_box = False
+
+        self.view.set_zoom_box(self.zoom_box)
+        self.view.selectionModel().currentChanged.connect(
+            self._sync_zoom_box_from_selection
+        )
+        self.model.dataChanged.connect(self._sync_zoom_box_from_model)
+        self.zoom_box.textEdited.connect(self._apply_zoom_box_edit)
         self.view.block_swap_requested.connect(self.handle_block_swap)
 
         self.view.drag_swap_requested.connect(self.handle_drag_swap)
 
+        layout.addWidget(self.zoom_box)
         self._zoom_box_geometry = None
         self._zoom_box_ratio = (0.7, 0.1)
         self._zoom_syncing = False
@@ -387,6 +400,43 @@ class EditorPage(QWidget):
         )
 
         self.document_changed.emit()
+
+    def _set_zoom_box_text(self, text):
+        self._syncing_zoom_box = True
+        self.zoom_box.setText(text)
+        self.zoom_box.selectAll()
+        self._syncing_zoom_box = False
+
+    def _sync_zoom_box_from_selection(self, current, previous):
+        if not current.isValid():
+            self._set_zoom_box_text("")
+            return
+
+        value = self.model.data(current, Qt.EditRole)
+        self._set_zoom_box_text(value or "")
+
+    def _sync_zoom_box_from_model(self, top_left, bottom_right, roles=None):
+        current = self.view.currentIndex()
+        if not current.isValid():
+            return
+
+        if (
+            top_left.row() <= current.row() <= bottom_right.row()
+            and top_left.column() <= current.column() <= bottom_right.column()
+        ):
+            value = self.model.data(current, Qt.EditRole)
+            self._set_zoom_box_text(value or "")
+
+    def _apply_zoom_box_edit(self, text):
+        if self._syncing_zoom_box:
+            return
+
+        index = self.view.currentIndex()
+        if not index.isValid():
+            return
+
+        self.model.setData(index, text, Qt.EditRole)
+
     def disarm_swap_rectangle(self):
         self.swap_rectangle_armed = False
         self.view.clearSelection()
@@ -876,4 +926,3 @@ class EditorPage(QWidget):
             width: 0px;
         }
         """)
-
