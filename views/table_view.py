@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QTableView
+from PySide6.QtWidgets import QTableView, QApplication
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtCore import QItemSelectionModel
 from PySide6.QtGui import QPainter, QColor, QKeySequence
@@ -61,13 +61,32 @@ class TableView(QTableView):
             event.accept()
             return  # ⛔ STOP Qt completely
 
+        if event.button() == Qt.LeftButton:
+            self.setFocus(Qt.MouseFocusReason)
+
         super().mousePressEvent(event)
 
+    def mouseDoubleClickEvent(self, event):
+        super().mouseDoubleClickEvent(event)
         if event.button() == Qt.LeftButton and self.zoom_box:
             self.zoom_box.setFocus(Qt.MouseFocusReason)
             self.zoom_box.selectAll()
 
     def keyPressEvent(self, event):
+        if event.matches(QKeySequence.Copy):
+            index = self.currentIndex()
+            if index.isValid():
+                text = self.model().data(index, Qt.DisplayRole)
+                QApplication.clipboard().setText("" if text is None else str(text))
+                return
+
+        if event.matches(QKeySequence.Paste):
+            index = self.currentIndex()
+            if index.isValid():
+                text = QApplication.clipboard().text()
+                self.model().setData(index, text, Qt.EditRole)
+                return
+
         if self.zoom_box:
             if event.matches(QKeySequence.Paste):
                 self.zoom_box.setFocus(Qt.OtherFocusReason)
@@ -236,17 +255,22 @@ class TableView(QTableView):
         menu = QMenu(self)
 
         swap_action = menu.addAction("Swap Rectangle")
+        copy_action = menu.addAction("Copy")
+        paste_action = menu.addAction("Paste")
         action = menu.exec(self.viewport().mapToGlobal(pos))
 
         if action == swap_action:
             parent = self.parent()
             if hasattr(parent, "arm_rectangle_swap"):
                 parent.arm_rectangle_swap()
+        elif action == copy_action:
+            self._copy_selection_to_clipboard()
+        elif action == paste_action:
+            self._paste_clipboard_to_selection()
     
     def clear_swap_mode(self):
         self.swap_mode = None
 
     def set_zoom_box(self, zoom_box):
         self.zoom_box = zoom_box
-
 

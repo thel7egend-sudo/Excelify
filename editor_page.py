@@ -619,6 +619,17 @@ class EditorPage(QWidget):
                 value = text[s:]
             values.append((row, col, value))
 
+        if self._targets_need_overwrite_confirmation(values):
+            reply = QMessageBox.question(
+                self,
+                "Overwrite Cells?",
+                "Cells already contain data. Overwrite?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                return
+
         for row, col, value in values:
             self.model.setData(self.model.index(row, col), value, Qt.EditRole)
 
@@ -635,6 +646,14 @@ class EditorPage(QWidget):
         max_rows = self.model.rowCount() - row
         count = min(segment_count, max_rows)
         return [(row + i, col) for i in range(count)]
+
+    def _targets_need_overwrite_confirmation(self, values):
+        for row, col, value in values:
+            idx = self.model.index(row, col)
+            existing = self.model.data(idx, Qt.EditRole) or ""
+            if existing != "" and existing != value:
+                return True
+        return False
 
     def _on_enter_toggle_changed(self, checked):
         self._enter_moves_right = checked
@@ -833,6 +852,20 @@ class EditorPage(QWidget):
         QWidget#sheetBar {
             background-color: #1e1e1e;
             border-top: 1px solid #2b2b2b;
+        }
+
+        /* ===============================
+        ZOOM BOX
+        =============================== */
+        QWidget#zoomBoxHost {
+            background-color: #252526;
+        }
+
+        QPlainTextEdit#zoomBox {
+            background-color: #1f1f1f;
+            color: #e6e6e6;
+            border: 1px solid #4a4a4a;
+            border-radius: 6px;
         }
 
         /* ===============================
