@@ -255,12 +255,18 @@ class TableView(QTableView):
         menu = QMenu(self)
 
         swap_action = menu.addAction("Swap Rectangle")
+        copy_action = menu.addAction("Copy")
+        paste_action = menu.addAction("Paste")
         action = menu.exec(self.viewport().mapToGlobal(pos))
 
         if action == swap_action:
             parent = self.parent()
             if hasattr(parent, "arm_rectangle_swap"):
                 parent.arm_rectangle_swap()
+        elif action == copy_action:
+            self._copy_selection_to_clipboard()
+        elif action == paste_action:
+            self._paste_clipboard_to_selection()
     
     def clear_swap_mode(self):
         self.swap_mode = None
