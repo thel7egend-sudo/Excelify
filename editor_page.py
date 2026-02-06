@@ -609,7 +609,17 @@ class EditorPage(QWidget):
         if not targets:
             return
 
-        if self._targets_have_data(targets):
+        values = []
+        for i, (row, col) in enumerate(targets):
+            if i < len(segments) - 1 and i < len(targets) - 1:
+                s, e = segments[i]
+                value = text[s:e]
+            else:
+                s = segments[min(i, len(segments) - 1)][0]
+                value = text[s:]
+            values.append((row, col, value))
+
+        if self._targets_need_overwrite_confirmation(values):
             reply = QMessageBox.question(
                 self,
                 "Overwrite Cells?",
@@ -620,13 +630,7 @@ class EditorPage(QWidget):
             if reply != QMessageBox.Yes:
                 return
 
-        for i, (row, col) in enumerate(targets):
-            if i < len(segments) - 1 and i < len(targets) - 1:
-                s, e = segments[i]
-                value = text[s:e]
-            else:
-                s = segments[min(i, len(segments) - 1)][0]
-                value = text[s:]
+        for row, col, value in values:
             self.model.setData(self.model.index(row, col), value, Qt.EditRole)
 
         last_row, last_col = targets[-1]
@@ -643,10 +647,11 @@ class EditorPage(QWidget):
         count = min(segment_count, max_rows)
         return [(row + i, col) for i in range(count)]
 
-    def _targets_have_data(self, targets):
-        for row, col in targets:
+    def _targets_need_overwrite_confirmation(self, values):
+        for row, col, value in values:
             idx = self.model.index(row, col)
-            if (self.model.data(idx, Qt.EditRole) or "") != "":
+            existing = self.model.data(idx, Qt.EditRole) or ""
+            if existing != "" and existing != value:
                 return True
         return False
 
