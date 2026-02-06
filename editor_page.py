@@ -619,7 +619,7 @@ class EditorPage(QWidget):
                 value = text[s:]
             values.append((row, col, value))
 
-        if self._targets_need_overwrite_confirmation(values):
+        if self._targets_need_overwrite_confirmation(values, index):
             reply = QMessageBox.question(
                 self,
                 "Overwrite Cells?",
@@ -647,9 +647,11 @@ class EditorPage(QWidget):
         count = min(segment_count, max_rows)
         return [(row + i, col) for i in range(count)]
 
-    def _targets_need_overwrite_confirmation(self, values):
+    def _targets_need_overwrite_confirmation(self, values, source_index):
         for row, col, value in values:
             idx = self.model.index(row, col)
+            if idx == source_index:
+                continue
             existing = self.model.data(idx, Qt.EditRole) or ""
             if existing != "" and existing != value:
                 return True
