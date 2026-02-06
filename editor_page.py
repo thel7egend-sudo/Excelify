@@ -1,9 +1,96 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QPlainTextEdit
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLineEdit
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
+    QPlainTextEdit, QTableView, QApplication, QSizePolicy, QCheckBox, QMessageBox
+)
 from models.table_model import TableModel
 from views.table_view import TableView
 from PySide6.QtCore import Signal, Qt, QItemSelectionModel
+from PySide6.QtGui import QPainter, QColor, QTextCursor
 from document import Sheet
-from PySide6.QtWidgets import QRadioButton
+
+
+class ZoomBoxEdit(QPlainTextEdit):
+    commit_requested = Signal()
+    move_requested = Signal(int, int)
+    jump_next_row_requested = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._markers = []
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            self.commit_requested.emit()
+            return
+
+        if event.key() == Qt.Key_Down and (event.modifiers() & Qt.ShiftModifier):
+            self.jump_next_row_requested.emit()
+            return
+
+        if event.key() in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down):
+            if event.key() == Qt.Key_Left:
+                self.move_requested.emit(0, -1)
+            elif event.key() == Qt.Key_Right:
+                self.move_requested.emit(0, 1)
+            elif event.key() == Qt.Key_Up:
+                self.move_requested.emit(-1, 0)
+            elif event.key() == Qt.Key_Down:
+                self.move_requested.emit(1, 0)
+            return
+
+        super().keyPressEvent(event)
+
+    def mousePressEvent(self, event):
+        if (
+            event.button() == Qt.LeftButton
+            and (event.modifiers() & Qt.ShiftModifier)
+        ):
+            cursor = self.cursorForPosition(event.pos())
+            self._add_marker(cursor.position())
+            event.accept()
+            return
+
+        super().mousePressEvent(event)
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+
+        if not self._markers:
+            return
+
+        painter = QPainter(self.viewport())
+        painter.setPen(QColor(90, 170, 255))
+
+        for cursor in self._markers:
+            rect = self.cursorRect(cursor)
+            if rect.isNull():
+                continue
+            x = rect.x()
+            y = rect.y()
+            h = rect.height()
+            painter.drawLine(x, y, x, y + h)
+            painter.drawLine(x + 3, y, x + 3, y + h)
+
+    def _add_marker(self, position):
+        for cursor in self._markers:
+            if cursor.position() == position:
+                return
+        cursor = QTextCursor(self.document())
+        cursor.setPosition(position)
+        self._markers.append(cursor)
+        self.viewport().update()
+
+    def clear_markers(self):
+        if not self._markers:
+            return
+        self._markers.clear()
+        self.viewport().update()
+
+    def marker_positions(self):
+        if not self._markers:
+            return []
+        return sorted({cursor.position() for cursor in self._markers})
 
 
 class EditorPage(QWidget):
@@ -19,6 +106,7 @@ class EditorPage(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
         # ---------- TOOL RIBBON ----------
         tool_ribbon = QWidget()
         tool_ribbon.setObjectName("editorRibbon")
@@ -53,6 +141,12 @@ class EditorPage(QWidget):
         ribbon_layout.addWidget(self.swap_col_btn)
 
         # 🔹 THIS IS THE FIX
+        self.zoom_box_btn = QPushButton("Zoom Box")
+        self.zoom_box_btn.setCheckable(True)
+        self.zoom_box_btn.setFixedHeight(32)
+        self.zoom_box_btn.toggled.connect(self._toggle_zoom_box)
+        ribbon_layout.addWidget(self.zoom_box_btn)
+
         ribbon_layout.addStretch()
 
         # 🔹 Export button (RIGHT)
@@ -76,9 +170,9 @@ class EditorPage(QWidget):
 
 
         self.view.setModel(self.model)
-        self.zoom_box = QPlainTextEdit()
+        self.zoom_box = QLineEdit()
         self.zoom_box.setPlaceholderText("Zoom box")
-        self.zoom_box.setFixedHeight(90)
+        self.zoom_box.setClearButtonEnabled(True)
         self._syncing_zoom_box = False
 
         self.view.set_zoom_box(self.zoom_box)
@@ -86,13 +180,48 @@ class EditorPage(QWidget):
             self._sync_zoom_box_from_selection
         )
         self.model.dataChanged.connect(self._sync_zoom_box_from_model)
-        self.zoom_box.textChanged.connect(self._apply_zoom_box_edit)
+        self.zoom_box.textEdited.connect(self._apply_zoom_box_edit)
         self.view.block_swap_requested.connect(self.handle_block_swap)
 
         self.view.drag_swap_requested.connect(self.handle_drag_swap)
 
-        layout.addWidget(self.view)
         layout.addWidget(self.zoom_box)
+        self._zoom_box_geometry = None
+        self._zoom_box_ratio = (0.7, 0.1)
+        self._zoom_syncing = False
+        self._zoom_internal_edit = False
+        self._saved_edit_triggers = self.view.editTriggers()
+        self._enter_moves_right = True
+
+        self.zoom_box = ZoomBoxEdit(self)
+        self.zoom_box.setObjectName("zoomBox")
+        self.zoom_box.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+
+        self.zoom_box.textChanged.connect(self._on_zoom_text_changed)
+        self.zoom_box.commit_requested.connect(self._commit_zoom_box)
+        self.zoom_box.move_requested.connect(self._move_current_by)
+        self.zoom_box.jump_next_row_requested.connect(self._jump_next_row)
+
+        self.zoom_box_host = QWidget()
+        self.zoom_box_host.setObjectName("zoomBoxHost")
+        zoom_host_layout = QHBoxLayout(self.zoom_box_host)
+        zoom_host_layout.setContentsMargins(0, 6, 12, 10)
+        zoom_host_layout.addStretch()
+        zoom_host_layout.addWidget(self.zoom_box)
+        self.enter_toggle = QCheckBox("Press Enter to change Column")
+        self.enter_toggle.setChecked(True)
+        self.enter_toggle.toggled.connect(self._on_enter_toggle_changed)
+        zoom_host_layout.addWidget(self.enter_toggle)
+        self.zoom_box_host.hide()
+
+        sel = self.view.selectionModel()
+        sel.currentChanged.connect(self._on_current_changed)
+        self.view.selection_finalized.connect(self._sync_zoom_box_to_current)
+        self.model.dataChanged.connect(self._on_model_data_changed)
+        self.model.layoutChanged.connect(self._on_model_layout_changed)
+
+        layout.addWidget(self.view)
+        layout.addWidget(self.zoom_box_host)
 
 # ---------- SHEET BAR (UI ONLY) ----------
 
@@ -147,11 +276,15 @@ class EditorPage(QWidget):
         self.document.active_sheet_index = len(self.document.sheets) - 1
         self.model.layoutChanged.emit()
         self.refresh_sheet_buttons()
+        self._deactivate_swaps()
+        self._deactivate_zoom_box()
         self.document_changed.emit()
     def switch_sheet(self, index):
         self.document.active_sheet_index = index
         self.model.layoutChanged.emit()
         self.refresh_sheet_buttons()
+        self._deactivate_swaps()
+        self._deactivate_zoom_box()
     def show_sheet_context_menu(self, index, button):
         from PySide6.QtWidgets import QMenu, QInputDialog, QMessageBox
 
@@ -214,6 +347,8 @@ class EditorPage(QWidget):
 
         self.model.layoutChanged.emit()
         self.refresh_sheet_buttons()
+        self._deactivate_swaps()
+        self._deactivate_zoom_box()
         self.document_changed.emit() 
     def handle_drag_swap(self, start_index, end_index):
         r1, c1 = start_index.row(), start_index.column()
@@ -268,10 +403,7 @@ class EditorPage(QWidget):
 
     def _set_zoom_box_text(self, text):
         self._syncing_zoom_box = True
-        if hasattr(self.zoom_box, "setPlainText"):
-            self.zoom_box.setPlainText(text)
-        else:
-            self.zoom_box.setText(text)
+        self.zoom_box.setText(text)
         self.zoom_box.selectAll()
         self._syncing_zoom_box = False
 
@@ -295,7 +427,7 @@ class EditorPage(QWidget):
             value = self.model.data(current, Qt.EditRole)
             self._set_zoom_box_text(value or "")
 
-    def _apply_zoom_box_edit(self):
+    def _apply_zoom_box_edit(self, text):
         if self._syncing_zoom_box:
             return
 
@@ -303,10 +435,6 @@ class EditorPage(QWidget):
         if not index.isValid():
             return
 
-        if hasattr(self.zoom_box, "toPlainText"):
-            text = self.zoom_box.toPlainText()
-        else:
-            text = self.zoom_box.text()
         self.model.setData(index, text, Qt.EditRole)
 
     def disarm_swap_rectangle(self):
@@ -337,6 +465,308 @@ class EditorPage(QWidget):
                 btn.blockSignals(True)
                 btn.setChecked(False)
                 btn.blockSignals(False)
+
+    def _toggle_zoom_box(self, checked):
+        if checked:
+            self._show_zoom_box()
+        else:
+            self._hide_zoom_box()
+
+    def _deactivate_zoom_box(self):
+        if not self.zoom_box_btn.isChecked():
+            return
+        self.zoom_box_btn.blockSignals(True)
+        self.zoom_box_btn.setChecked(False)
+        self.zoom_box_btn.blockSignals(False)
+        self._hide_zoom_box()
+
+    def _deactivate_swaps(self):
+        self.clear_swap_mode()
+
+    def _show_zoom_box(self):
+        self._saved_edit_triggers = self.view.editTriggers()
+        self.view.setEditTriggers(QTableView.NoEditTriggers)
+        self._update_zoom_box_size_from_ratio()
+        self.zoom_box_host.show()
+        self._ensure_current_index()
+        self._sync_zoom_box_to_current()
+        self.zoom_box.setFocus()
+
+    def _hide_zoom_box(self):
+        if self.zoom_box_host.isVisible():
+            self._store_zoom_box_ratio()
+            self.zoom_box_host.hide()
+
+        if self._saved_edit_triggers is not None:
+            self.view.setEditTriggers(self._saved_edit_triggers)
+
+    def _update_zoom_box_size_from_ratio(self):
+        viewport = self.view.viewport().size()
+        if viewport.width() <= 0 or viewport.height() <= 0:
+            return
+        width_ratio, height_ratio = self._zoom_box_ratio
+        width = max(240, int(viewport.width() * width_ratio))
+        height = max(90, int(viewport.height() * height_ratio))
+        width = min(width, max(240, viewport.width() - 40))
+        height = min(height, max(90, viewport.height() - 40))
+        self.zoom_box.setFixedSize(width, height)
+        self.zoom_box_host.setFixedHeight(height + 16)
+
+    def _store_zoom_box_ratio(self):
+        viewport = self.view.viewport().size()
+        if viewport.width() <= 0 or viewport.height() <= 0:
+            return
+        self._zoom_box_ratio = (
+            self.zoom_box.width() / viewport.width(),
+            self.zoom_box.height() / viewport.height()
+        )
+
+    def _on_current_changed(self, current, previous):
+        if not self.zoom_box_host.isVisible():
+            return
+
+        if QApplication.mouseButtons() & Qt.LeftButton:
+            return
+
+        self._sync_zoom_box_to_index(current)
+
+    def _sync_zoom_box_to_current(self):
+        if not self.zoom_box_host.isVisible():
+            return
+        self._sync_zoom_box_to_index(self.view.currentIndex())
+
+    def _sync_zoom_box_to_index(self, index):
+        if not self.zoom_box_host.isVisible():
+            return
+        if not index.isValid():
+            self._zoom_syncing = True
+            self.zoom_box.clear_markers()
+            self.zoom_box.setPlainText("")
+            self._zoom_syncing = False
+            return
+
+        value = self.model.data(index, Qt.EditRole) or ""
+        if self.zoom_box.toPlainText() == value:
+            return
+
+        self._zoom_syncing = True
+        self.zoom_box.clear_markers()
+        self.zoom_box.setPlainText(value)
+        self._zoom_syncing = False
+
+    def _on_zoom_text_changed(self):
+        if not self.zoom_box_host.isVisible():
+            return
+        if self._zoom_syncing:
+            return
+        self._push_zoom_text_to_model()
+
+    def _push_zoom_text_to_model(self):
+        index = self._ensure_current_index()
+        if not index.isValid():
+            return
+
+        text = self.zoom_box.toPlainText()
+        current = self.model.data(index, Qt.EditRole) or ""
+        if text == current:
+            return
+
+        self._zoom_internal_edit = True
+        self.model.setData(index, text, Qt.EditRole)
+        self._zoom_internal_edit = False
+
+    def _commit_zoom_box(self):
+        if not self.zoom_box_host.isVisible():
+            return
+        marker_positions = self.zoom_box.marker_positions()
+        if marker_positions:
+            self._commit_zoom_box_segments(marker_positions)
+            self.zoom_box.clear_markers()
+            return
+
+        self._push_zoom_text_to_model()
+        if self._enter_moves_right:
+            self._advance_to_next_cell()
+        else:
+            self._advance_to_next_row()
+
+    def _advance_to_next_cell(self):
+        index = self._ensure_current_index()
+        if not index.isValid():
+            return
+
+        row, col = index.row(), index.column()
+        if col + 1 >= self.model.columnCount():
+            if row + 1 < self.model.rowCount():
+                col = 0
+                row = row + 1
+        else:
+            col += 1
+
+        self._set_current_index(row, col)
+
+    def _advance_to_next_row(self):
+        index = self._ensure_current_index()
+        if not index.isValid():
+            return
+        row, col = index.row(), index.column()
+        if row + 1 < self.model.rowCount():
+            row = row + 1
+        self._set_current_index(row, col)
+
+    def _move_current_by(self, row_delta, col_delta):
+        if not self.zoom_box_host.isVisible():
+            return
+        self._push_zoom_text_to_model()
+        index = self._ensure_current_index()
+        if not index.isValid():
+            return
+        self._set_current_index(index.row() + row_delta, index.column() + col_delta)
+
+    def _jump_next_row(self):
+        if not self.zoom_box_host.isVisible():
+            return
+        self._push_zoom_text_to_model()
+        index = self._ensure_current_index()
+        if not index.isValid():
+            return
+        self._set_current_index(index.row() + 1, 0)
+
+    def _commit_zoom_box_segments(self, marker_positions):
+        text = self.zoom_box.toPlainText()
+        length = len(text)
+        positions = [p for p in marker_positions if 0 < p < length]
+        if not positions:
+            self._push_zoom_text_to_model()
+            return
+
+        positions = sorted(set(positions))
+        segments = []
+        start = 0
+        for pos in positions:
+            segments.append((start, pos))
+            start = pos
+        segments.append((start, length))
+
+        index = self._ensure_current_index()
+        if not index.isValid():
+            return
+
+        targets = self._segment_targets(index, len(segments))
+        if not targets:
+            return
+
+        if self._targets_have_data(targets):
+            reply = QMessageBox.question(
+                self,
+                "Overwrite Cells?",
+                "Cells already contain data. Overwrite?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                return
+
+        for i, (row, col) in enumerate(targets):
+            if i < len(segments) - 1 and i < len(targets) - 1:
+                s, e = segments[i]
+                value = text[s:e]
+            else:
+                s = segments[min(i, len(segments) - 1)][0]
+                value = text[s:]
+            self.model.setData(self.model.index(row, col), value, Qt.EditRole)
+
+        last_row, last_col = targets[-1]
+        self._set_current_index(last_row, last_col)
+
+    def _segment_targets(self, index, segment_count):
+        row, col = index.row(), index.column()
+        if self._enter_moves_right:
+            max_cols = self.model.columnCount() - col
+            count = min(segment_count, max_cols)
+            return [(row, col + i) for i in range(count)]
+
+        max_rows = self.model.rowCount() - row
+        count = min(segment_count, max_rows)
+        return [(row + i, col) for i in range(count)]
+
+    def _targets_have_data(self, targets):
+        for row, col in targets:
+            idx = self.model.index(row, col)
+            if (self.model.data(idx, Qt.EditRole) or "") != "":
+                return True
+        return False
+
+    def _on_enter_toggle_changed(self, checked):
+        self._enter_moves_right = checked
+        if checked:
+            self.enter_toggle.setText("Press Enter to change Column")
+        else:
+            self.enter_toggle.setText("Press Enter to change Row")
+
+    def _set_current_index(self, row, col):
+        row = max(0, min(row, self.model.rowCount() - 1))
+        col = max(0, min(col, self.model.columnCount() - 1))
+        new_index = self.model.index(row, col)
+        sel = self.view.selectionModel()
+        sel.setCurrentIndex(
+            new_index,
+            QItemSelectionModel.ClearAndSelect
+        )
+        self.view.scrollTo(new_index)
+
+    def _ensure_current_index(self):
+        index = self.view.currentIndex()
+        if index.isValid():
+            return index
+
+        index = self.model.index(0, 0)
+        sel = self.view.selectionModel()
+        sel.setCurrentIndex(
+            index,
+            QItemSelectionModel.ClearAndSelect
+        )
+        return index
+
+    def _on_model_data_changed(self, top_left, bottom_right, roles=None):
+        if not self.zoom_box_host.isVisible():
+            return
+        if self._zoom_internal_edit:
+            return
+
+        current = self.view.currentIndex()
+        if not current.isValid():
+            return
+
+        in_range = (
+            top_left.row() <= current.row() <= bottom_right.row()
+            and top_left.column() <= current.column() <= bottom_right.column()
+        )
+        if in_range:
+            self._sync_zoom_box_to_index(current)
+
+    def _on_model_layout_changed(self):
+        if not self.zoom_box_host.isVisible():
+            return
+        self._sync_zoom_box_to_current()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self.zoom_box_btn.isChecked():
+            self._show_zoom_box()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self.zoom_box_host.isVisible():
+            self._update_zoom_box_size_from_ratio()
+
+    def hideEvent(self, event):
+        if self.zoom_box_host.isVisible():
+            self._store_zoom_box_ratio()
+            self.zoom_box_host.hide()
+        if self._saved_edit_triggers is not None:
+            self.view.setEditTriggers(self._saved_edit_triggers)
+        super().hideEvent(event)
     def apply_grid_dark_mode(self, enabled: bool):
         if not enabled:
             self.setStyleSheet("")
@@ -418,6 +848,7 @@ class EditorPage(QWidget):
             color: #e6e6e6;
             selection-background-color: #094771;
             selection-color: #ffffff;
+            border: 1px solid #2b2b2b;
         }
 
         QTableView::item:selected {
@@ -425,9 +856,21 @@ class EditorPage(QWidget):
             color: #ffffff;
         }
 
+        QAbstractScrollArea::viewport {
+            background-color: #1e1e1e;
+        }
+
+        QAbstractScrollArea::corner {
+            background: #1e1e1e;
+        }
+
         /* ===============================
         HEADERS
         =============================== */
+        QHeaderView {
+            background-color: #252526;
+        }
+
         QHeaderView::section {
             background-color: #252526;
             color: #e6e6e6;
@@ -436,6 +879,11 @@ class EditorPage(QWidget):
         }
 
         QTableCornerButton::section {
+            background-color: #252526;
+            border: 1px solid #3a3a3a;
+        }
+
+        QTableView QTableCornerButton::section {
             background-color: #252526;
             border: 1px solid #3a3a3a;
         }
@@ -465,6 +913,10 @@ class EditorPage(QWidget):
         }
         QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {
             background: #4a4a4a;
+        }
+        QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical,
+        QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+            background: #1e1e1e;
         }
         QScrollBar::add-line:vertical,
         QScrollBar::sub-line:vertical,

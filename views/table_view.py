@@ -6,6 +6,7 @@ from PySide6.QtGui import QPainter, QColor, QKeySequence
 class TableView(QTableView):
     drag_swap_requested = Signal(object, object)
     block_swap_requested = Signal(tuple, tuple)
+    selection_finalized = Signal()
     # ((r1,c1,r2,c2), (dest_r1,dest_c1))
     def __init__(self):
         super().__init__()
@@ -78,10 +79,7 @@ class TableView(QTableView):
             if text and not (event.modifiers() & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)):
                 self.zoom_box.setFocus(Qt.OtherFocusReason)
                 self.zoom_box.selectAll()
-                if hasattr(self.zoom_box, "insertPlainText"):
-                    self.zoom_box.insertPlainText(text)
-                else:
-                    self.zoom_box.insert(text)
+                self.zoom_box.insert(text)
                 return
 
         super().keyPressEvent(event)
@@ -171,6 +169,8 @@ class TableView(QTableView):
             return
 
         super().mouseReleaseEvent(event)
+        if event.button() == Qt.LeftButton:
+            self.selection_finalized.emit()
     
 
     def _update_ghost(self, pos):
@@ -248,3 +248,5 @@ class TableView(QTableView):
 
     def set_zoom_box(self, zoom_box):
         self.zoom_box = zoom_box
+
+
