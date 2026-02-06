@@ -267,3 +267,4 @@ class TableView(QTableView):
 
     def set_zoom_box(self, zoom_box):
         self.zoom_box = zoom_box
+
