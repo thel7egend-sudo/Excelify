@@ -855,6 +855,20 @@ class EditorPage(QWidget):
         }
 
         /* ===============================
+        ZOOM BOX
+        =============================== */
+        QWidget#zoomBoxHost {
+            background-color: #252526;
+        }
+
+        QPlainTextEdit#zoomBox {
+            background-color: #1f1f1f;
+            color: #e6e6e6;
+            border: 1px solid #4a4a4a;
+            border-radius: 6px;
+        }
+
+        /* ===============================
         SCROLLBARS
         =============================== */
         QScrollBar:vertical, QScrollBar:horizontal {
