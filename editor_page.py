@@ -619,7 +619,7 @@ class EditorPage(QWidget):
                 value = text[s:]
             values.append((row, col, value))
 
-        if self._targets_need_overwrite_confirmation(values, index):
+        if self._targets_need_overwrite_confirmation(values):
             reply = QMessageBox.question(
                 self,
                 "Overwrite Cells?",
@@ -647,15 +647,11 @@ class EditorPage(QWidget):
         count = min(segment_count, max_rows)
         return [(row + i, col) for i in range(count)]
 
-    def _targets_need_overwrite_confirmation(self, values, origin_index):
-        origin_row = origin_index.row()
-        origin_col = origin_index.column()
+    def _targets_need_overwrite_confirmation(self, values):
         for row, col, value in values:
-            if row == origin_row and col == origin_col:
-                continue
             idx = self.model.index(row, col)
             existing = self.model.data(idx, Qt.EditRole) or ""
-            if existing != "":
+            if existing != "" and existing != value:
                 return True
         return False
 
@@ -856,6 +852,20 @@ class EditorPage(QWidget):
         QWidget#sheetBar {
             background-color: #1e1e1e;
             border-top: 1px solid #2b2b2b;
+        }
+
+        /* ===============================
+        ZOOM BOX
+        =============================== */
+        QWidget#zoomBoxHost {
+            background-color: #252526;
+        }
+
+        QPlainTextEdit#zoomBox {
+            background-color: #1f1f1f;
+            color: #e6e6e6;
+            border: 1px solid #4a4a4a;
+            border-radius: 6px;
         }
 
         /* ===============================
