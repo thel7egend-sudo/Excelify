@@ -68,38 +68,18 @@ class TableView(QTableView):
 
     def mouseDoubleClickEvent(self, event):
         super().mouseDoubleClickEvent(event)
-        if event.button() == Qt.LeftButton and self.zoom_box:
+        if event.button() == Qt.LeftButton and self.zoom_box and self.zoom_box.isVisible():
             self.zoom_box.setFocus(Qt.MouseFocusReason)
             self.zoom_box.selectAll()
 
     def keyPressEvent(self, event):
         if event.matches(QKeySequence.Copy):
-            index = self.currentIndex()
-            if index.isValid():
-                text = self.model().data(index, Qt.DisplayRole)
-                QApplication.clipboard().setText("" if text is None else str(text))
-                return
+            self._copy_selection_to_clipboard()
+            return
 
         if event.matches(QKeySequence.Paste):
-            index = self.currentIndex()
-            if index.isValid():
-                text = QApplication.clipboard().text()
-                self.model().setData(index, text, Qt.EditRole)
-                return
-
-        if self.zoom_box:
-            if event.matches(QKeySequence.Paste):
-                self.zoom_box.setFocus(Qt.OtherFocusReason)
-                self.zoom_box.selectAll()
-                self.zoom_box.paste()
-                return
-
-            text = event.text()
-            if text and not (event.modifiers() & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)):
-                self.zoom_box.setFocus(Qt.OtherFocusReason)
-                self.zoom_box.selectAll()
-                self.zoom_box.insertPlainText(text)
-                return
+            self._paste_clipboard_to_selection()
+            return
 
         super().keyPressEvent(event)
 
