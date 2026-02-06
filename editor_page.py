@@ -609,17 +609,7 @@ class EditorPage(QWidget):
         if not targets:
             return
 
-        if self._targets_have_data(targets):
-            reply = QMessageBox.question(
-                self,
-                "Overwrite Cells?",
-                "Cells already contain data. Overwrite?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
-            )
-            if reply != QMessageBox.Yes:
-                return
-
+        values = []
         for i, (row, col) in enumerate(targets):
             if i < len(segments) - 1 and i < len(targets) - 1:
                 s, e = segments[i]
@@ -627,6 +617,9 @@ class EditorPage(QWidget):
             else:
                 s = segments[min(i, len(segments) - 1)][0]
                 value = text[s:]
+            values.append((row, col, value))
+
+        for row, col, value in values:
             self.model.setData(self.model.index(row, col), value, Qt.EditRole)
 
         last_row, last_col = targets[-1]
@@ -642,13 +635,6 @@ class EditorPage(QWidget):
         max_rows = self.model.rowCount() - row
         count = min(segment_count, max_rows)
         return [(row + i, col) for i in range(count)]
-
-    def _targets_have_data(self, targets):
-        for row, col in targets:
-            idx = self.model.index(row, col)
-            if (self.model.data(idx, Qt.EditRole) or "") != "":
-                return True
-        return False
 
     def _on_enter_toggle_changed(self, checked):
         self._enter_moves_right = checked
