@@ -24,6 +24,7 @@ class MainWindow(QMainWindow):
         self.container = QWidget()
         self.container_layout = QVBoxLayout(self.container)
         self.container_layout.setContentsMargins(0, 0, 0, 0)
+        self.container_layout.setSpacing(0)
 
         self.home = HomePage(self.chrome)
         self.home.open_import_requested.connect(self.import_excel)
