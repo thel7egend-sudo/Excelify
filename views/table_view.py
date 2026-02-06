@@ -98,7 +98,7 @@ class TableView(QTableView):
             if text and not (event.modifiers() & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)):
                 self.zoom_box.setFocus(Qt.OtherFocusReason)
                 self.zoom_box.selectAll()
-                self.zoom_box.insert(text)
+                self.zoom_box.insertPlainText(text)
                 return
 
         super().keyPressEvent(event)
