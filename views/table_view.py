@@ -68,38 +68,18 @@ class TableView(QTableView):
 
     def mouseDoubleClickEvent(self, event):
         super().mouseDoubleClickEvent(event)
-        if event.button() == Qt.LeftButton and self.zoom_box:
+        if event.button() == Qt.LeftButton and self.zoom_box and self.zoom_box.isVisible():
             self.zoom_box.setFocus(Qt.MouseFocusReason)
             self.zoom_box.selectAll()
 
     def keyPressEvent(self, event):
         if event.matches(QKeySequence.Copy):
-            index = self.currentIndex()
-            if index.isValid():
-                text = self.model().data(index, Qt.DisplayRole)
-                QApplication.clipboard().setText("" if text is None else str(text))
-                return
+            self._copy_selection_to_clipboard()
+            return
 
         if event.matches(QKeySequence.Paste):
-            index = self.currentIndex()
-            if index.isValid():
-                text = QApplication.clipboard().text()
-                self.model().setData(index, text, Qt.EditRole)
-                return
-
-        if self.zoom_box:
-            if event.matches(QKeySequence.Paste):
-                self.zoom_box.setFocus(Qt.OtherFocusReason)
-                self.zoom_box.selectAll()
-                self.zoom_box.paste()
-                return
-
-            text = event.text()
-            if text and not (event.modifiers() & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)):
-                self.zoom_box.setFocus(Qt.OtherFocusReason)
-                self.zoom_box.selectAll()
-                self.zoom_box.insert(text)
-                return
+            self._paste_clipboard_to_selection()
+            return
 
         super().keyPressEvent(event)
 
@@ -248,7 +228,8 @@ class TableView(QTableView):
         if not index.isValid():
             return
 
-        if not self.selectionModel().isSelected(index):
+        selection = self.selectionModel()
+        if selection is None or not selection.isSelected(index):
             return
 
         from PySide6.QtWidgets import QMenu
@@ -274,3 +255,51 @@ class TableView(QTableView):
     def set_zoom_box(self, zoom_box):
         self.zoom_box = zoom_box
 
+    def _selected_rect(self):
+        selection = self.selectionModel()
+        if selection is None:
+            return None
+        selected = selection.selectedIndexes()
+        if not selected:
+            index = self.currentIndex()
+            if not index.isValid():
+                return None
+            return index.row(), index.column(), index.row(), index.column()
+
+        rows = [i.row() for i in selected]
+        cols = [i.column() for i in selected]
+        return min(rows), min(cols), max(rows), max(cols)
+
+    def _copy_selection_to_clipboard(self):
+        rect = self._selected_rect()
+        if rect is None:
+            return
+
+        r1, c1, r2, c2 = rect
+        lines = []
+        for r in range(r1, r2 + 1):
+            row_values = []
+            for c in range(c1, c2 + 1):
+                value = self.model().data(self.model().index(r, c), Qt.DisplayRole)
+                row_values.append("" if value is None else str(value))
+            lines.append("\t".join(row_values))
+
+        QApplication.clipboard().setText("\n".join(lines))
+
+    def _paste_clipboard_to_selection(self):
+        text = QApplication.clipboard().text()
+        if text == "":
+            return
+
+        rect = self._selected_rect()
+        if rect is None:
+            return
+
+        start_row, start_col, _, _ = rect
+        rows = text.splitlines() or [""]
+        for r_offset, row_text in enumerate(rows):
+            cols = row_text.split("\t")
+            for c_offset, value in enumerate(cols):
+                index = self.model().index(start_row + r_offset, start_col + c_offset)
+                if index.isValid():
+                    self.model().setData(index, value, Qt.EditRole)
