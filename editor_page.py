@@ -487,6 +487,7 @@ class EditorPage(QWidget):
         if not self.zoom_box_host.isVisible():
             return
         self._sync_zoom_box_to_index(self.view.currentIndex())
+        self.zoom_box.setFocus(Qt.MouseFocusReason)
 
     def _sync_zoom_box_to_index(self, index):
         if not self.zoom_box_host.isVisible():
@@ -619,17 +620,6 @@ class EditorPage(QWidget):
                 value = text[s:]
             values.append((row, col, value))
 
-        if self._targets_need_overwrite_confirmation(values):
-            reply = QMessageBox.question(
-                self,
-                "Overwrite Cells?",
-                "Cells already contain data. Overwrite?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
-            )
-            if reply != QMessageBox.Yes:
-                return
-
         for row, col, value in values:
             self.model.setData(self.model.index(row, col), value, Qt.EditRole)
 
@@ -646,14 +636,6 @@ class EditorPage(QWidget):
         max_rows = self.model.rowCount() - row
         count = min(segment_count, max_rows)
         return [(row + i, col) for i in range(count)]
-
-    def _targets_need_overwrite_confirmation(self, values):
-        for row, col, value in values:
-            idx = self.model.index(row, col)
-            existing = self.model.data(idx, Qt.EditRole) or ""
-            if existing != "" and existing != value:
-                return True
-        return False
 
     def _on_enter_toggle_changed(self, checked):
         self._enter_moves_right = checked
