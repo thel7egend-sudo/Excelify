@@ -50,6 +50,14 @@ class ZoomBoxEdit(QPlainTextEdit):
             self._add_marker(cursor.position())
             event.accept()
             return
+        if (
+            event.button() == Qt.RightButton
+            and (event.modifiers() & Qt.ShiftModifier)
+        ):
+            cursor = self.cursorForPosition(event.pos())
+            if self._remove_marker(cursor.position()):
+                event.accept()
+                return
 
         super().mousePressEvent(event)
 
@@ -80,6 +88,14 @@ class ZoomBoxEdit(QPlainTextEdit):
         cursor.setPosition(position)
         self._markers.append(cursor)
         self.viewport().update()
+
+    def _remove_marker(self, position):
+        for i, cursor in enumerate(self._markers):
+            if cursor.position() == position:
+                del self._markers[i]
+                self.viewport().update()
+                return True
+        return False
 
     def clear_markers(self):
         if not self._markers:
