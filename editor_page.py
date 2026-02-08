@@ -503,6 +503,7 @@ class EditorPage(QWidget):
         if not self.zoom_box_host.isVisible():
             return
         self._sync_zoom_box_to_index(self.view.currentIndex())
+        self.zoom_box.setFocus(Qt.MouseFocusReason)
 
     def _sync_zoom_box_to_index(self, index):
         if not self.zoom_box_host.isVisible():
@@ -625,7 +626,17 @@ class EditorPage(QWidget):
         if not targets:
             return
 
-        if self._targets_have_data(targets):
+        values = []
+        for i, (row, col) in enumerate(targets):
+            if i < len(segments) - 1 and i < len(targets) - 1:
+                s, e = segments[i]
+                value = text[s:e]
+            else:
+                s = segments[min(i, len(segments) - 1)][0]
+                value = text[s:]
+            values.append((row, col, value))
+
+        if self._targets_need_overwrite_confirmation(values, index):
             reply = QMessageBox.question(
                 self,
                 "Overwrite Cells?",
@@ -636,13 +647,7 @@ class EditorPage(QWidget):
             if reply != QMessageBox.Yes:
                 return
 
-        for i, (row, col) in enumerate(targets):
-            if i < len(segments) - 1 and i < len(targets) - 1:
-                s, e = segments[i]
-                value = text[s:e]
-            else:
-                s = segments[min(i, len(segments) - 1)][0]
-                value = text[s:]
+        for row, col, value in values:
             self.model.setData(self.model.index(row, col), value, Qt.EditRole)
 
         last_row, last_col = targets[-1]
@@ -659,10 +664,13 @@ class EditorPage(QWidget):
         count = min(segment_count, max_rows)
         return [(row + i, col) for i in range(count)]
 
-    def _targets_have_data(self, targets):
-        for row, col in targets:
+    def _targets_need_overwrite_confirmation(self, values, source_index):
+        for row, col, value in values:
             idx = self.model.index(row, col)
-            if (self.model.data(idx, Qt.EditRole) or "") != "":
+            if idx == source_index:
+                continue
+            existing = self.model.data(idx, Qt.EditRole) or ""
+            if existing != "" and existing != value:
                 return True
         return False
 
@@ -863,6 +871,20 @@ class EditorPage(QWidget):
         QWidget#sheetBar {
             background-color: #1e1e1e;
             border-top: 1px solid #2b2b2b;
+        }
+
+        /* ===============================
+        ZOOM BOX
+        =============================== */
+        QWidget#zoomBoxHost {
+            background-color: #252526;
+        }
+
+        QPlainTextEdit#zoomBox {
+            background-color: #1f1f1f;
+            color: #e6e6e6;
+            border: 1px solid #4a4a4a;
+            border-radius: 6px;
         }
 
         /* ===============================
