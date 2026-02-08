@@ -398,6 +398,15 @@ class EditorPage(QWidget):
 
     def _set_swap_mode(self, mode, checked):
         if checked:
+            for other_mode, btn in (
+                ("cell", self.swap_cell_btn),
+                ("row", self.swap_row_btn),
+                ("column", self.swap_col_btn),
+            ):
+                if other_mode != mode and btn.isChecked():
+                    btn.blockSignals(True)
+                    btn.setChecked(False)
+                    btn.blockSignals(False)
             self.swap_mode = mode
         else:
             if self.swap_mode == mode:
