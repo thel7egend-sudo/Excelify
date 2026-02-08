@@ -49,6 +49,12 @@ class TableView(QTableView):
                 mode != "rectangle"                    or self.selectionModel().isSelected(index)
             )
         ):
+            selection = self.selectionModel()
+            if selection is not None and not selection.isSelected(index):
+                selection.setCurrentIndex(
+                    index,
+                    QItemSelectionModel.ClearAndSelect
+                )
 
             # 🔒 HARD SWITCH: disable Qt selection
             self._saved_selection_mode = self.selectionMode()
