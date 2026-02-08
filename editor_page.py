@@ -55,9 +55,9 @@ class ZoomBoxEdit(QPlainTextEdit):
             and (event.modifiers() & Qt.ShiftModifier)
         ):
             cursor = self.cursorForPosition(event.pos())
-            if self._remove_marker(cursor.position()):
-                event.accept()
-                return
+            self._remove_marker(cursor.position())
+            event.accept()
+            return
 
         super().mousePressEvent(event)
 
