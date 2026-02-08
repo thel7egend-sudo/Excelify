@@ -116,6 +116,7 @@ class TableView(QTableView):
 
             end_index = self.indexAt(event.pos())
             selected = self.selectionModel().selectedIndexes()
+            mode = self.get_swap_mode()
 
             if end_index.isValid() and selected:
                 rows = [i.row() for i in selected]
@@ -130,8 +131,6 @@ class TableView(QTableView):
                     end_index.row(),
                     end_index.column()
                 )
-
-                mode = self.get_swap_mode()
 
                 if mode == "rectangle":
                     self.block_swap_requested.emit(src_rect, dest_top_left)
@@ -162,7 +161,8 @@ class TableView(QTableView):
             self._ghost_rect = None
             self._drag_start_pos = None
             self.clearSelection()
-            self.clear_swap_mode()
+            if mode == "rectangle":
+                self.clear_swap_mode()
             self.viewport().update()
             event.accept()
             return
