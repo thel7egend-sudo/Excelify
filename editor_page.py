@@ -487,6 +487,7 @@ class EditorPage(QWidget):
         if not self.zoom_box_host.isVisible():
             return
         self._sync_zoom_box_to_index(self.view.currentIndex())
+        self.zoom_box.setFocus(Qt.MouseFocusReason)
 
     def _sync_zoom_box_to_index(self, index):
         if not self.zoom_box_host.isVisible():
