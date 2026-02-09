@@ -22,7 +22,7 @@ from PySide6.QtCore import (
     Signal,
     Qt,
 )
-from PySide6.QtGui import QColor, QPainter, QTextCursor
+from PySide6.QtGui import QActionGroup, QColor, QPainter, QTextCursor
 from PySide6.QtWidgets import QStyle, QStyleOptionToolButton
 
 from models.table_model import TableModel
