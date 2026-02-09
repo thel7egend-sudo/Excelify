@@ -1,13 +1,61 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
-    QPlainTextEdit, QTableView, QApplication, QSizePolicy, QCheckBox, QMessageBox
+    QApplication,
+    QCheckBox,
+    QHBoxLayout,
+    QActionGroup,
+    QMenu,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QSizePolicy,
+    QToolButton,
+    QToolTip,
+    QVBoxLayout,
+    QWidget,
+    QTableView,
 )
+from PySide6.QtCore import (
+    Property,
+    QItemSelectionModel,
+    QPropertyAnimation,
+    QEasingCurve,
+    Signal,
+    Qt,
+)
+from PySide6.QtGui import QColor, QPainter, QTextCursor
+from PySide6.QtWidgets import QStyle, QStyleOptionToolButton
+
 from models.table_model import TableModel
 from views.table_view import TableView
-from PySide6.QtCore import Signal, Qt, QItemSelectionModel
-from PySide6.QtGui import QPainter, QColor, QTextCursor
+from voice.voice_controller import VoiceController, TranscriptionTarget
 from document import Sheet
+
+
+class DictateToolButton(QToolButton):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._pulse_scale = 1.0
+
+    def _get_pulse_scale(self):
+        return self._pulse_scale
+
+    def _set_pulse_scale(self, value):
+        self._pulse_scale = value
+        self.update()
+
+    pulse_scale = Property(float, _get_pulse_scale, _set_pulse_scale)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        center = self.rect().center()
+        painter.translate(center)
+        painter.scale(self._pulse_scale, self._pulse_scale)
+        painter.translate(-center)
+
+        option = QStyleOptionToolButton()
+        self.initStyleOption(option)
+        self.style().drawComplexControl(QStyle.CC_ToolButton, option, painter, self)
 
 
 class ZoomBoxEdit(QPlainTextEdit):
@@ -165,6 +213,35 @@ class EditorPage(QWidget):
 
         ribbon_layout.addStretch()
 
+        self.dictate_btn = DictateToolButton()
+        self.dictate_btn.setText("🎙️Dictate ∨")
+        self.dictate_btn.setFixedHeight(36)
+        self.dictate_btn.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.dictate_btn.setPopupMode(QToolButton.MenuButtonPopup)
+        self.dictate_btn.clicked.connect(self._toggle_dictate)
+
+        self.dictate_menu = QMenu(self.dictate_btn)
+        self.dictate_menu.aboutToShow.connect(self._populate_mic_menu)
+        self.dictate_btn.setMenu(self.dictate_menu)
+
+        self._dictate_pulse = QPropertyAnimation(self.dictate_btn, b"pulse_scale")
+        self._dictate_pulse.setStartValue(1.0)
+        self._dictate_pulse.setEndValue(1.08)
+        self._dictate_pulse.setDuration(700)
+        self._dictate_pulse.setEasingCurve(QEasingCurve.InOutSine)
+        self._dictate_pulse.setLoopCount(-1)
+
+        self._dictate_idle_style = ""
+        self._dictate_recording_style = (
+            "QToolButton {"
+            "background-color: #d9534f;"
+            "color: white;"
+            "border-radius: 6px;"
+            "}"
+        )
+
+        ribbon_layout.addWidget(self.dictate_btn)
+
         # 🔹 Export button (RIGHT)
         self.export_btn = QPushButton("Export to Excel")
         self.export_btn.setFixedHeight(36)
@@ -189,6 +266,13 @@ class EditorPage(QWidget):
         self.view.block_swap_requested.connect(self.handle_block_swap)
 
         self.view.drag_swap_requested.connect(self.handle_drag_swap)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
 
         self._zoom_box_geometry = None
         self._zoom_box_ratio = (0.7, 0.1)
@@ -500,6 +584,14 @@ class EditorPage(QWidget):
         )
 
     def _on_current_changed(self, current, previous):
+        if self.voice_controller.is_recording:
+            target_index = previous if previous.isValid() else current
+            if target_index.isValid():
+                target = TranscriptionTarget(target_index.row(), target_index.column())
+            else:
+                target = TranscriptionTarget(0, 0)
+            self.voice_controller.stop_recording(target)
+
         if not self.zoom_box_host.isVisible():
             return
 
@@ -736,6 +828,89 @@ class EditorPage(QWidget):
             return
         self._sync_zoom_box_to_current()
 
+    def _toggle_dictate(self):
+        if self.voice_controller.is_transcribing:
+            self._show_dictate_hint("Transcribing... please wait.")
+            return
+
+        index = self._ensure_current_index()
+        target = TranscriptionTarget(index.row(), index.column())
+
+        if self.voice_controller.is_recording:
+            self.voice_controller.stop_recording(target)
+        else:
+            self.voice_controller.start_recording(target)
+
+    def _populate_mic_menu(self):
+        self.dictate_menu.clear()
+        group = QActionGroup(self.dictate_menu)
+        group.setExclusive(True)
+
+        default_action = self.dictate_menu.addAction("Default system mic")
+        default_action.setCheckable(True)
+        default_action.setData(None)
+        if self.voice_controller.selected_device_id is None:
+            default_action.setChecked(True)
+        default_action.triggered.connect(lambda: self._select_microphone(None))
+        group.addAction(default_action)
+
+        devices = self.voice_controller.list_devices()
+        if not devices:
+            no_mics = self.dictate_menu.addAction("No mics connected")
+            no_mics.setEnabled(False)
+        else:
+            for device in devices:
+                action = self.dictate_menu.addAction(device.name)
+                action.setCheckable(True)
+                action.setData(device.device_id)
+                if device.device_id == self.voice_controller.selected_device_id:
+                    action.setChecked(True)
+                action.triggered.connect(
+                    lambda checked=False, device_id=device.device_id: self._select_microphone(device_id)
+                )
+                group.addAction(action)
+
+        if self.voice_controller.is_recording:
+            for action in self.dictate_menu.actions():
+                action.setEnabled(False)
+
+    def _select_microphone(self, device_id):
+        self.voice_controller.set_selected_device(device_id)
+
+    def _on_dictate_started(self):
+        self.dictate_btn.setText("⏺Dictate ∨")
+        self.dictate_btn.setStyleSheet(self._dictate_recording_style)
+        self._dictate_pulse.start()
+
+    def _on_dictate_stopped(self):
+        self._dictate_pulse.stop()
+        self.dictate_btn.setStyleSheet(self._dictate_idle_style)
+        self.dictate_btn.setText("🎙️Dictate ∨")
+        self.dictate_btn.pulse_scale = 1.0
+
+    def _on_dictate_transcription_ready(self, text, target):
+        self._append_text_to_cell(text, target)
+
+    def _on_dictate_error(self, message):
+        self._show_dictate_hint(f"Transcription failed: {message}")
+
+    def _show_dictate_hint(self, message):
+        pos = self.dictate_btn.mapToGlobal(self.dictate_btn.rect().bottomLeft())
+        QToolTip.showText(pos, message, self.dictate_btn)
+
+    def _append_text_to_cell(self, text, target):
+        if not text:
+            return
+        index = self.model.index(target.row, target.column)
+        if not index.isValid():
+            return
+        current = self.model.data(index, Qt.EditRole) or ""
+        separator = ""
+        if current and text and not current.endswith((" ", "\n")) and not text.startswith(" "):
+            separator = " "
+        updated = f"{current}{separator}{text}"
+        self.model.setData(index, updated, Qt.EditRole)
+
     def showEvent(self, event):
         super().showEvent(event)
         if self.zoom_box_btn.isChecked():
@@ -753,6 +928,7 @@ class EditorPage(QWidget):
         if self._saved_edit_triggers is not None:
             self.view.setEditTriggers(self._saved_edit_triggers)
         super().hideEvent(event)
+
     def apply_grid_dark_mode(self, enabled: bool):
         if not enabled:
             self.setStyleSheet("")
@@ -782,7 +958,19 @@ class EditorPage(QWidget):
             padding: 4px 12px;
         }
 
+        QWidget#editorRibbon QToolButton {
+            background-color: #2d2d30;
+            color: #e6e6e6;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            padding: 4px 12px;
+        }
+
         QWidget#editorRibbon QPushButton:hover {
+            background-color: #3a3a3a;
+        }
+
+        QWidget#editorRibbon QToolButton:hover {
             background-color: #3a3a3a;
         }
 
@@ -793,6 +981,11 @@ class EditorPage(QWidget):
         }
 
         QWidget#editorRibbon QPushButton:disabled {
+            color: #9e9e9e;
+            background-color: #2a2a2a;
+        }
+
+        QWidget#editorRibbon QToolButton:disabled {
             color: #9e9e9e;
             background-color: #2a2a2a;
         }
