@@ -149,6 +149,15 @@ class EditorPage(QWidget):
 
         ribbon_layout.addStretch()
 
+        self.undo_btn = QPushButton("Undo: ↶")
+        self.redo_btn = QPushButton("Redo: ↷")
+        for btn in (self.undo_btn, self.redo_btn):
+            btn.setFixedHeight(32)
+        self.undo_btn.clicked.connect(self.model.undo)
+        self.redo_btn.clicked.connect(self.model.redo)
+        ribbon_layout.addWidget(self.undo_btn)
+        ribbon_layout.addWidget(self.redo_btn)
+
         # 🔹 Export button (RIGHT)
         self.export_btn = QPushButton("Export to Excel")
         self.export_btn.setFixedHeight(36)
@@ -620,6 +629,7 @@ class EditorPage(QWidget):
             if reply != QMessageBox.Yes:
                 return
 
+        self.model.begin_macro()
         for i, (row, col) in enumerate(targets):
             if i < len(segments) - 1 and i < len(targets) - 1:
                 s, e = segments[i]
@@ -628,6 +638,7 @@ class EditorPage(QWidget):
                 s = segments[min(i, len(segments) - 1)][0]
                 value = text[s:]
             self.model.setData(self.model.index(row, col), value, Qt.EditRole)
+        self.model.end_macro()
 
         last_row, last_col = targets[-1]
         self._set_current_index(last_row, last_col)
