@@ -240,6 +240,15 @@ class EditorPage(QWidget):
         self.view.get_swap_mode = lambda: self.swap_mode
         self.view.clear_swap_mode = self.clear_swap_mode
 
+        self.undo_btn = QPushButton("Undo: ↶")
+        self.redo_btn = QPushButton("Redo: ↷")
+        for btn in (self.undo_btn, self.redo_btn):
+            btn.setFixedHeight(32)
+        self.undo_btn.clicked.connect(self.model.undo)
+        self.redo_btn.clicked.connect(self.model.redo)
+        ribbon_layout.insertWidget(ribbon_layout.count() - 1, self.undo_btn)
+        ribbon_layout.insertWidget(ribbon_layout.count() - 1, self.redo_btn)
+
 
         self.view.setModel(self.model)
         self.view.block_swap_requested.connect(self.handle_block_swap)
