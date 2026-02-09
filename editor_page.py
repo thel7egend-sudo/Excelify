@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QHeaderView,
     QSizePolicy,
     QToolButton,
     QToolTip,
@@ -266,6 +267,12 @@ class EditorPage(QWidget):
         self.view.block_swap_requested.connect(self.handle_block_swap)
 
         self.view.drag_swap_requested.connect(self.handle_drag_swap)
+        self._restoring_sizes = False
+        self._default_row_height = self.view.verticalHeader().defaultSectionSize()
+        self._default_col_width = self.view.horizontalHeader().defaultSectionSize()
+        self.view.verticalHeader().sectionResized.connect(self._on_row_resized)
+        self.view.horizontalHeader().sectionResized.connect(self._on_col_resized)
+        self._apply_sheet_sizes()
 
         self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
         self.voice_controller.recording_started.connect(self._on_dictate_started)
@@ -367,6 +374,7 @@ class EditorPage(QWidget):
         self.refresh_sheet_buttons()
         self._deactivate_swaps()
         self._deactivate_zoom_box()
+        self._apply_sheet_sizes()
         self.document_changed.emit()
     def switch_sheet(self, index):
         self.document.active_sheet_index = index
@@ -374,6 +382,7 @@ class EditorPage(QWidget):
         self.refresh_sheet_buttons()
         self._deactivate_swaps()
         self._deactivate_zoom_box()
+        self._apply_sheet_sizes()
     def show_sheet_context_menu(self, index, button):
         from PySide6.QtWidgets import QMenu, QInputDialog, QMessageBox
 
@@ -438,6 +447,7 @@ class EditorPage(QWidget):
         self.refresh_sheet_buttons()
         self._deactivate_swaps()
         self._deactivate_zoom_box()
+        self._apply_sheet_sizes()
         self.document_changed.emit() 
     def handle_drag_swap(self, start_index, end_index):
         r1, c1 = start_index.row(), start_index.column()
@@ -561,6 +571,50 @@ class EditorPage(QWidget):
 
         if self._saved_edit_triggers is not None:
             self.view.setEditTriggers(self._saved_edit_triggers)
+
+    def _apply_sheet_sizes(self):
+        sheet = self.document.active_sheet
+        v_header = self.view.verticalHeader()
+        h_header = self.view.horizontalHeader()
+        self._restoring_sizes = True
+        try:
+            self._reset_header_sizes(
+                v_header, self.model.rowCount(), self._default_row_height
+            )
+            self._reset_header_sizes(
+                h_header, self.model.columnCount(), self._default_col_width
+            )
+            for row, height in sheet.row_heights.items():
+                v_header.resizeSection(row, height)
+            for col, width in sheet.col_widths.items():
+                h_header.resizeSection(col, width)
+        finally:
+            self._restoring_sizes = False
+
+    def _reset_header_sizes(self, header, count, default_size):
+        header.setDefaultSectionSize(default_size)
+        for index in range(count):
+            header.resizeSection(index, default_size)
+
+    def _on_row_resized(self, logical_index, old_size, new_size):
+        if self._restoring_sizes:
+            return
+        sheet = self.document.active_sheet
+        if new_size == self._default_row_height:
+            sheet.row_heights.pop(logical_index, None)
+        else:
+            sheet.row_heights[logical_index] = new_size
+        self.document_changed.emit()
+
+    def _on_col_resized(self, logical_index, old_size, new_size):
+        if self._restoring_sizes:
+            return
+        sheet = self.document.active_sheet
+        if new_size == self._default_col_width:
+            sheet.col_widths.pop(logical_index, None)
+        else:
+            sheet.col_widths[logical_index] = new_size
+        self.document_changed.emit()
 
     def _update_zoom_box_size_from_ratio(self):
         viewport = self.view.viewport().size()
