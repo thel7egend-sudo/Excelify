@@ -3,11 +3,48 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QToolButton, QMenu,
     QPlainTextEdit, QTableView, QApplication, QSizePolicy, QCheckBox, QMessageBox
 )
+from PySide6.QtCore import (
+    Property,
+    QItemSelectionModel,
+    QPropertyAnimation,
+    QEasingCurve,
+    Signal,
+    Qt,
+)
+from PySide6.QtGui import QColor, QPainter, QTextCursor
+from PySide6.QtWidgets import QStyle, QStyleOptionToolButton
+
 from models.table_model import TableModel
 from views.table_view import TableView
-from PySide6.QtCore import Signal, Qt, QItemSelectionModel
-from PySide6.QtGui import QPainter, QColor, QTextCursor
+from voice.voice_controller import VoiceController, TranscriptionTarget
 from document import Sheet
+
+
+class DictateToolButton(QToolButton):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._pulse_scale = 1.0
+
+    def _get_pulse_scale(self):
+        return self._pulse_scale
+
+    def _set_pulse_scale(self, value):
+        self._pulse_scale = value
+        self.update()
+
+    pulse_scale = Property(float, _get_pulse_scale, _set_pulse_scale)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        center = self.rect().center()
+        painter.translate(center)
+        painter.scale(self._pulse_scale, self._pulse_scale)
+        painter.translate(-center)
+
+        option = QStyleOptionToolButton()
+        self.initStyleOption(option)
+        self.style().drawComplexControl(QStyle.CC_ToolButton, option, painter, self)
 
 
 class ZoomBoxEdit(QPlainTextEdit):
@@ -50,6 +87,14 @@ class ZoomBoxEdit(QPlainTextEdit):
             self._add_marker(cursor.position())
             event.accept()
             return
+        if (
+            event.button() == Qt.RightButton
+            and (event.modifiers() & Qt.ShiftModifier)
+        ):
+            cursor = self.cursorForPosition(event.pos())
+            self._remove_marker(cursor.position())
+            event.accept()
+            return
 
         super().mousePressEvent(event)
 
@@ -80,6 +125,14 @@ class ZoomBoxEdit(QPlainTextEdit):
         cursor.setPosition(position)
         self._markers.append(cursor)
         self.viewport().update()
+
+    def _remove_marker(self, position):
+        for i, cursor in enumerate(self._markers):
+            if cursor.position() == position:
+                del self._markers[i]
+                self.viewport().update()
+                return True
+        return False
 
     def clear_markers(self):
         if not self._markers:
@@ -188,6 +241,27 @@ class EditorPage(QWidget):
         self.view.block_swap_requested.connect(self.handle_block_swap)
 
         self.view.drag_swap_requested.connect(self.handle_drag_swap)
+        self._restoring_sizes = False
+        self._default_row_height = self.view.verticalHeader().defaultSectionSize()
+        self._default_col_width = self.view.horizontalHeader().defaultSectionSize()
+        self.view.verticalHeader().sectionResized.connect(self._on_row_resized)
+        self.view.horizontalHeader().sectionResized.connect(self._on_col_resized)
+        self._apply_sheet_sizes()
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
 
         self._zoom_box_geometry = None
         self._zoom_box_ratio = (0.7, 0.1)
@@ -282,6 +356,7 @@ class EditorPage(QWidget):
         self.refresh_sheet_buttons()
         self._deactivate_swaps()
         self._deactivate_zoom_box()
+        self._apply_sheet_sizes()
         self.document_changed.emit()
     def switch_sheet(self, index):
         self.document.active_sheet_index = index
@@ -289,6 +364,7 @@ class EditorPage(QWidget):
         self.refresh_sheet_buttons()
         self._deactivate_swaps()
         self._deactivate_zoom_box()
+        self._apply_sheet_sizes()
     def show_sheet_context_menu(self, index, button):
         from PySide6.QtWidgets import QMenu, QInputDialog, QMessageBox
 
@@ -353,6 +429,7 @@ class EditorPage(QWidget):
         self.refresh_sheet_buttons()
         self._deactivate_swaps()
         self._deactivate_zoom_box()
+        self._apply_sheet_sizes()
         self.document_changed.emit() 
     def handle_drag_swap(self, start_index, end_index):
         r1, c1 = start_index.row(), start_index.column()
@@ -413,6 +490,15 @@ class EditorPage(QWidget):
 
     def _set_swap_mode(self, mode, checked):
         if checked:
+            for other_mode, btn in (
+                ("cell", self.swap_cell_btn),
+                ("row", self.swap_row_btn),
+                ("column", self.swap_col_btn),
+            ):
+                if other_mode != mode and btn.isChecked():
+                    btn.blockSignals(True)
+                    btn.setChecked(False)
+                    btn.blockSignals(False)
             self.swap_mode = mode
         else:
             if self.swap_mode == mode:
@@ -468,6 +554,50 @@ class EditorPage(QWidget):
         if self._saved_edit_triggers is not None:
             self.view.setEditTriggers(self._saved_edit_triggers)
 
+    def _apply_sheet_sizes(self):
+        sheet = self.document.active_sheet
+        v_header = self.view.verticalHeader()
+        h_header = self.view.horizontalHeader()
+        self._restoring_sizes = True
+        try:
+            self._reset_header_sizes(
+                v_header, self.model.rowCount(), self._default_row_height
+            )
+            self._reset_header_sizes(
+                h_header, self.model.columnCount(), self._default_col_width
+            )
+            for row, height in sheet.row_heights.items():
+                v_header.resizeSection(row, height)
+            for col, width in sheet.col_widths.items():
+                h_header.resizeSection(col, width)
+        finally:
+            self._restoring_sizes = False
+
+    def _reset_header_sizes(self, header, count, default_size):
+        header.setDefaultSectionSize(default_size)
+        for index in range(count):
+            header.resizeSection(index, default_size)
+
+    def _on_row_resized(self, logical_index, old_size, new_size):
+        if self._restoring_sizes:
+            return
+        sheet = self.document.active_sheet
+        if new_size == self._default_row_height:
+            sheet.row_heights.pop(logical_index, None)
+        else:
+            sheet.row_heights[logical_index] = new_size
+        self.document_changed.emit()
+
+    def _on_col_resized(self, logical_index, old_size, new_size):
+        if self._restoring_sizes:
+            return
+        sheet = self.document.active_sheet
+        if new_size == self._default_col_width:
+            sheet.col_widths.pop(logical_index, None)
+        else:
+            sheet.col_widths[logical_index] = new_size
+        self.document_changed.emit()
+
     def _update_zoom_box_size_from_ratio(self):
         viewport = self.view.viewport().size()
         if viewport.width() <= 0 or viewport.height() <= 0:
@@ -490,6 +620,14 @@ class EditorPage(QWidget):
         )
 
     def _on_current_changed(self, current, previous):
+        if self.voice_controller.is_recording:
+            target_index = previous if previous.isValid() else current
+            if target_index.isValid():
+                target = TranscriptionTarget(target_index.row(), target_index.column())
+            else:
+                target = TranscriptionTarget(0, 0)
+            self.voice_controller.stop_recording(target)
+
         if not self.zoom_box_host.isVisible():
             return
 
@@ -502,6 +640,7 @@ class EditorPage(QWidget):
         if not self.zoom_box_host.isVisible():
             return
         self._sync_zoom_box_to_index(self.view.currentIndex())
+        self.zoom_box.setFocus(Qt.MouseFocusReason)
 
     def _sync_zoom_box_to_index(self, index):
         if not self.zoom_box_host.isVisible():
@@ -624,7 +763,17 @@ class EditorPage(QWidget):
         if not targets:
             return
 
-        if self._targets_have_data(targets):
+        values = []
+        for i, (row, col) in enumerate(targets):
+            if i < len(segments) - 1 and i < len(targets) - 1:
+                s, e = segments[i]
+                value = text[s:e]
+            else:
+                s = segments[min(i, len(segments) - 1)][0]
+                value = text[s:]
+            values.append((row, col, value))
+
+        if self._targets_need_overwrite_confirmation(values, index):
             reply = QMessageBox.question(
                 self,
                 "Overwrite Cells?",
@@ -660,10 +809,13 @@ class EditorPage(QWidget):
         count = min(segment_count, max_rows)
         return [(row + i, col) for i in range(count)]
 
-    def _targets_have_data(self, targets):
-        for row, col in targets:
+    def _targets_need_overwrite_confirmation(self, values, source_index):
+        for row, col, value in values:
             idx = self.model.index(row, col)
-            if (self.model.data(idx, Qt.EditRole) or "") != "":
+            if idx == source_index:
+                continue
+            existing = self.model.data(idx, Qt.EditRole) or ""
+            if existing != "" and existing != value:
                 return True
         return False
 
@@ -720,6 +872,112 @@ class EditorPage(QWidget):
             return
         self._sync_zoom_box_to_current()
 
+    def _toggle_dictate(self):
+        if self.voice_controller.is_transcribing:
+            self._show_dictate_hint("Transcribing... please wait.")
+            return
+
+        index = self._ensure_current_index()
+        target = TranscriptionTarget(index.row(), index.column())
+
+        if self.voice_controller.is_recording:
+            self.voice_controller.stop_recording(target)
+        else:
+            self.voice_controller.start_recording(target)
+
+    def _populate_mic_menu(self):
+        self.dictate_menu.clear()
+        self._mic_actions = []
+
+        default_action = self.dictate_menu.addAction("Default system mic")
+        default_action.setCheckable(True)
+        default_action.setData(None)
+        if self.voice_controller.selected_device_id is None:
+            default_action.setChecked(True)
+        default_action.triggered.connect(
+            lambda checked=False, action=default_action: self._select_microphone_action(None, action)
+        )
+        self._mic_actions.append(default_action)
+
+        devices = self.voice_controller.list_devices()
+        if not devices:
+            no_mics = self.dictate_menu.addAction("No mics connected")
+            no_mics.setEnabled(False)
+        else:
+            for device in devices:
+                action = self.dictate_menu.addAction(device.name)
+                action.setCheckable(True)
+                action.setData(device.device_id)
+                if device.device_id == self.voice_controller.selected_device_id:
+                    action.setChecked(True)
+                action.triggered.connect(
+                    lambda checked=False, device_id=device.device_id, action=action: (
+                        self._select_microphone_action(device_id, action)
+                    )
+                )
+                self._mic_actions.append(action)
+
+        if self.voice_controller.is_recording:
+            for action in self.dictate_menu.actions():
+                action.setEnabled(False)
+
+    def _select_microphone(self, device_id):
+        self.voice_controller.set_selected_device(device_id)
+
+    def _select_microphone_action(self, device_id, action):
+        self._select_microphone(device_id)
+        self._update_mic_checks(action)
+
+    def _update_mic_checks(self, selected_action):
+        for action in self._mic_actions:
+            action.setChecked(action is selected_action)
+
+    def _on_dictate_started(self):
+        self.dictate_btn.setText("⏺Dictate ∨")
+        self.dictate_btn.setStyleSheet(self._dictate_recording_style)
+        self._dictate_pulse.stop()
+
+    def _on_dictate_stopped(self):
+        self._dictate_pulse.stop()
+        self.dictate_btn.setStyleSheet(self._dictate_idle_style)
+        self.dictate_btn.setText("🎙️Dictate ∨")
+        self.dictate_btn.pulse_scale = 1.0
+
+    def _on_dictate_transcription_ready(self, text, target):
+        self._append_text_to_cell(text, target)
+
+    def _on_dictate_error(self, message):
+        self._show_dictate_hint(f"Transcription failed: {message}")
+
+    def _show_dictate_hint(self, message):
+        pos = self.dictate_btn.mapToGlobal(self.dictate_btn.rect().bottomLeft())
+        QToolTip.showText(pos, message, self.dictate_btn)
+
+    def _on_dictate_level(self, level):
+        if not self.voice_controller.is_recording:
+            return
+        threshold = 0.02
+        if level >= threshold:
+            if self._dictate_pulse.state() != QPropertyAnimation.Running:
+                self._dictate_pulse.start()
+        else:
+            if self._dictate_pulse.state() == QPropertyAnimation.Running:
+                self._dictate_pulse.stop()
+                self.dictate_btn.pulse_scale = 1.0
+
+    def _append_text_to_cell(self, text, target):
+        if not text:
+            return
+        index = self.model.index(target.row, target.column)
+        if not index.isValid():
+            return
+        current = self.model.data(index, Qt.EditRole) or ""
+        separator = ""
+        if current and text and not current.endswith((" ", "\n")) and not text.startswith(" "):
+            separator = " "
+        updated = f"{current}{separator}{text}"
+        self.model.setData(index, updated, Qt.EditRole)
+
     def showEvent(self, event):
         super().showEvent(event)
         if self.zoom_box_btn.isChecked():
@@ -737,6 +995,7 @@ class EditorPage(QWidget):
         if self._saved_edit_triggers is not None:
             self.view.setEditTriggers(self._saved_edit_triggers)
         super().hideEvent(event)
+
     def apply_grid_dark_mode(self, enabled: bool):
         if not enabled:
             self.setStyleSheet("")
@@ -766,7 +1025,19 @@ class EditorPage(QWidget):
             padding: 4px 12px;
         }
 
+        QWidget#editorRibbon QToolButton {
+            background-color: #2d2d30;
+            color: #e6e6e6;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            padding: 4px 12px;
+        }
+
         QWidget#editorRibbon QPushButton:hover {
+            background-color: #3a3a3a;
+        }
+
+        QWidget#editorRibbon QToolButton:hover {
             background-color: #3a3a3a;
         }
 
@@ -777,6 +1048,11 @@ class EditorPage(QWidget):
         }
 
         QWidget#editorRibbon QPushButton:disabled {
+            color: #9e9e9e;
+            background-color: #2a2a2a;
+        }
+
+        QWidget#editorRibbon QToolButton:disabled {
             color: #9e9e9e;
             background-color: #2a2a2a;
         }
@@ -864,6 +1140,20 @@ class EditorPage(QWidget):
         QWidget#sheetBar {
             background-color: #1e1e1e;
             border-top: 1px solid #2b2b2b;
+        }
+
+        /* ===============================
+        ZOOM BOX
+        =============================== */
+        QWidget#zoomBoxHost {
+            background-color: #252526;
+        }
+
+        QPlainTextEdit#zoomBox {
+            background-color: #1f1f1f;
+            color: #e6e6e6;
+            border: 1px solid #4a4a4a;
+            border-radius: 6px;
         }
 
         /* ===============================
