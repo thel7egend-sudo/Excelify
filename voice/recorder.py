@@ -19,6 +19,10 @@ def list_input_devices() -> List[InputDevice]:
     for device_id, info in enumerate(devices):
         if info.get("max_input_channels", 0) <= 0:
             continue
+        try:
+            sd.check_input_settings(device=device_id, channels=1)
+        except Exception:
+            continue
         inputs.append(
             InputDevice(
                 device_id=device_id,
