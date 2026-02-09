@@ -103,6 +103,7 @@ class EditorPage(QWidget):
         self.document = document
         self.sheet_buttons = []
         self.swap_mode = None
+        self.model = TableModel(document)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -163,10 +164,18 @@ class EditorPage(QWidget):
         layout.addWidget(tool_ribbon)
 
 
-        self.model = TableModel(document)
         self.view = TableView()
         self.view.get_swap_mode = lambda: self.swap_mode
         self.view.clear_swap_mode = self.clear_swap_mode
+
+        self.undo_btn = QPushButton("Undo: ↶")
+        self.redo_btn = QPushButton("Redo: ↷")
+        for btn in (self.undo_btn, self.redo_btn):
+            btn.setFixedHeight(32)
+        self.undo_btn.clicked.connect(self.model.undo)
+        self.redo_btn.clicked.connect(self.model.redo)
+        ribbon_layout.insertWidget(ribbon_layout.count() - 1, self.undo_btn)
+        ribbon_layout.insertWidget(ribbon_layout.count() - 1, self.redo_btn)
 
 
         self.view.setModel(self.model)
@@ -620,6 +629,7 @@ class EditorPage(QWidget):
             if reply != QMessageBox.Yes:
                 return
 
+        self.model.begin_macro()
         for i, (row, col) in enumerate(targets):
             if i < len(segments) - 1 and i < len(targets) - 1:
                 s, e = segments[i]
@@ -628,6 +638,7 @@ class EditorPage(QWidget):
                 s = segments[min(i, len(segments) - 1)][0]
                 value = text[s:]
             self.model.setData(self.model.index(row, col), value, Qt.EditRole)
+        self.model.end_macro()
 
         last_row, last_col = targets[-1]
         self._set_current_index(last_row, last_col)

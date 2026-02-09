@@ -11,6 +11,12 @@ class TableModel(QAbstractTableModel):
 
         self.rows = self.MAX_ROWS
         self.columns = self.MAX_COLUMNS
+        self._undo_stack = []
+        self._redo_stack = []
+        self._macro_depth = 0
+        self._macro_before = {}
+        self._macro_after = {}
+        self._suspend_history = False
 
 
 
@@ -51,12 +57,15 @@ class TableModel(QAbstractTableModel):
             row, col = index.row(), index.column()
 
             cells = self.document.active_sheet.cells
+            before = cells.get((row, col), "")
 
             if value == "":
                 cells.pop((row, col), None)
             else:
                 cells[(row, col)] = value
 
+            after = cells.get((row, col), "")
+            self._push_change({(row, col): before}, {(row, col): after})
             self.dataChanged.emit(index, index)
             self.save_requested.emit()
             return True
@@ -80,6 +89,8 @@ class TableModel(QAbstractTableModel):
     def cells(self):
         return self.document.active_sheet.cells
     def swap_cells(self, r1, c1, r2, c2):
+        positions = [(r1, c1), (r2, c2)]
+        before = self._snapshot_positions(positions)
         cells = self.cells
         v1 = cells.get((r1, c1), "")
         v2 = cells.get((r2, c2), "")
@@ -98,12 +109,16 @@ class TableModel(QAbstractTableModel):
             self.index(min(r1, r2), min(c1, c2)),
             self.index(max(r1, r2), max(c1, c2))
         )
+        after = self._snapshot_positions(positions)
+        self._push_change(before, after)
     def swap_rows(self, r1, r2):
         if r1 == r2:
             return
 
         cells = self.cells
         cols = set(c for (_, c) in cells.keys())
+        positions = [(r1, c) for c in cols] + [(r2, c) for c in cols]
+        before = self._snapshot_positions(positions)
 
         for c in cols:
             v1 = cells.get((r1, c), "")
@@ -119,6 +134,8 @@ class TableModel(QAbstractTableModel):
             else:
                 cells.pop((r1, c), None)
 
+        after = self._snapshot_positions(positions)
+        self._push_change(before, after)
         self.layoutChanged.emit()
     def swap_columns(self, c1, c2):
         if c1 == c2:
@@ -126,6 +143,8 @@ class TableModel(QAbstractTableModel):
 
         cells = self.cells
         rows = set(r for (r, _) in cells.keys())
+        positions = [(r, c1) for r in rows] + [(r, c2) for r in rows]
+        before = self._snapshot_positions(positions)
 
         for r in rows:
             v1 = cells.get((r, c1), "")
@@ -141,6 +160,8 @@ class TableModel(QAbstractTableModel):
             else:
                 cells.pop((r, c1), None)
 
+        after = self._snapshot_positions(positions)
+        self._push_change(before, after)
         self.layoutChanged.emit()
     def swap_block(self, r1, c1, r2, c2, dr1, dc1, dr2, dc2):
         cells = self.document.active_sheet.cells
@@ -150,6 +171,13 @@ class TableModel(QAbstractTableModel):
 
         if (dr2 - dr1) != src_h or (dc2 - dc1) != src_w:
             return  # shape mismatch
+
+        positions = []
+        for r in range(src_h + 1):
+            for c in range(src_w + 1):
+                positions.append((r1 + r, c1 + c))
+                positions.append((dr1 + r, dc1 + c))
+        before = self._snapshot_positions(positions)
 
         # snapshot source
         src = {}
@@ -173,4 +201,84 @@ class TableModel(QAbstractTableModel):
                 else:
                     cells.pop((dr1 + r, dc1 + c), None)
 
+        after = self._snapshot_positions(positions)
+        self._push_change(before, after)
         self.layoutChanged.emit()
+
+    def begin_macro(self):
+        self._macro_depth += 1
+        if self._macro_depth == 1:
+            self._macro_before = {}
+            self._macro_after = {}
+
+    def end_macro(self):
+        if self._macro_depth == 0:
+            return
+        self._macro_depth -= 1
+        if self._macro_depth > 0:
+            return
+        if self._macro_before or self._macro_after:
+            self._undo_stack.append((self._macro_before, self._macro_after))
+            self._redo_stack.clear()
+        self._macro_before = {}
+        self._macro_after = {}
+
+    def undo(self):
+        if not self._undo_stack:
+            return
+        before, after = self._undo_stack.pop()
+        self._redo_stack.append((before, after))
+        self._apply_change(before)
+
+    def redo(self):
+        if not self._redo_stack:
+            return
+        before, after = self._redo_stack.pop()
+        self._undo_stack.append((before, after))
+        self._apply_change(after)
+
+    def _snapshot_positions(self, positions):
+        cells = self.cells
+        snapshot = {}
+        for pos in positions:
+            if pos in snapshot:
+                continue
+            snapshot[pos] = cells.get(pos, "")
+        return snapshot
+
+    def _push_change(self, before, after):
+        if self._suspend_history:
+            return
+        if before == after:
+            return
+        if self._macro_depth > 0:
+            for pos, value in before.items():
+                if pos not in self._macro_before:
+                    self._macro_before[pos] = value
+            for pos, value in after.items():
+                self._macro_after[pos] = value
+            return
+        self._undo_stack.append((before, after))
+        self._redo_stack.clear()
+
+    def _apply_change(self, values):
+        if not values:
+            return
+        self._suspend_history = True
+        cells = self.cells
+        rows = []
+        cols = []
+        for (row, col), value in values.items():
+            if value == "":
+                cells.pop((row, col), None)
+            else:
+                cells[(row, col)] = value
+            rows.append(row)
+            cols.append(col)
+        self._suspend_history = False
+        if rows and cols:
+            self.dataChanged.emit(
+                self.index(min(rows), min(cols)),
+                self.index(max(rows), max(cols))
+            )
+            self.save_requested.emit()
