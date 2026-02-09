@@ -312,6 +312,7 @@ class TableView(QTableView):
         if rect is None:
             return
 
+        self.model().begin_macro()
         start_row, start_col, _, _ = rect
         rows = text.splitlines() or [""]
         for r_offset, row_text in enumerate(rows):
@@ -320,6 +321,7 @@ class TableView(QTableView):
                 index = self.model().index(start_row + r_offset, start_col + c_offset)
                 if index.isValid():
                     self.model().setData(index, value, Qt.EditRole)
+        self.model().end_macro()
 
     def _cut_selection_to_clipboard(self):
         rect = self._selected_rect()
@@ -327,13 +329,14 @@ class TableView(QTableView):
             return
 
         self._copy_selection_to_clipboard()
-        text = QApplication.clipboard().text()
         r1, c1, r2, c2 = rect
+        self.model().begin_macro()
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
                 index = self.model().index(r, c)
                 if index.isValid():
                     self.model().setData(index, "", Qt.EditRole)
+        self.model().end_macro()
 
     def _delete_selection_contents(self):
         rect = self._selected_rect()
@@ -341,8 +344,10 @@ class TableView(QTableView):
             return
 
         r1, c1, r2, c2 = rect
+        self.model().begin_macro()
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
                 index = self.model().index(r, c)
                 if index.isValid():
                     self.model().setData(index, "", Qt.EditRole)
+        self.model().end_macro()

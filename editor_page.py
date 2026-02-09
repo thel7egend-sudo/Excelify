@@ -212,35 +212,14 @@ class EditorPage(QWidget):
 
         ribbon_layout.addStretch()
 
-        self.dictate_btn = DictateToolButton()
-        self.dictate_btn.setText("🎙️Dictate ∨")
-        self.dictate_btn.setFixedHeight(36)
-        self.dictate_btn.setToolButtonStyle(Qt.ToolButtonTextOnly)
-        self.dictate_btn.setPopupMode(QToolButton.MenuButtonPopup)
-        self.dictate_btn.clicked.connect(self._toggle_dictate)
-
-        self.dictate_menu = QMenu(self.dictate_btn)
-        self.dictate_menu.aboutToShow.connect(self._populate_mic_menu)
-        self.dictate_btn.setMenu(self.dictate_menu)
-        self._mic_actions = []
-
-        self._dictate_pulse = QPropertyAnimation(self.dictate_btn, b"pulse_scale")
-        self._dictate_pulse.setStartValue(1.0)
-        self._dictate_pulse.setEndValue(1.08)
-        self._dictate_pulse.setDuration(700)
-        self._dictate_pulse.setEasingCurve(QEasingCurve.InOutSine)
-        self._dictate_pulse.setLoopCount(-1)
-
-        self._dictate_idle_style = ""
-        self._dictate_recording_style = (
-            "QToolButton {"
-            "background-color: #d9534f;"
-            "color: white;"
-            "border-radius: 6px;"
-            "}"
-        )
-
-        ribbon_layout.addWidget(self.dictate_btn)
+        self.undo_btn = QPushButton("Undo: ↶")
+        self.redo_btn = QPushButton("Redo: ↷")
+        for btn in (self.undo_btn, self.redo_btn):
+            btn.setFixedHeight(32)
+        self.undo_btn.clicked.connect(self.model.undo)
+        self.redo_btn.clicked.connect(self.model.redo)
+        ribbon_layout.addWidget(self.undo_btn)
+        ribbon_layout.addWidget(self.redo_btn)
 
         # 🔹 Export button (RIGHT)
         self.export_btn = QPushButton("Export to Excel")
@@ -809,8 +788,16 @@ class EditorPage(QWidget):
             if reply != QMessageBox.Yes:
                 return
 
-        for row, col, value in values:
+        self.model.begin_macro()
+        for i, (row, col) in enumerate(targets):
+            if i < len(segments) - 1 and i < len(targets) - 1:
+                s, e = segments[i]
+                value = text[s:e]
+            else:
+                s = segments[min(i, len(segments) - 1)][0]
+                value = text[s:]
             self.model.setData(self.model.index(row, col), value, Qt.EditRole)
+        self.model.end_macro()
 
         last_row, last_col = targets[-1]
         self._set_current_index(last_row, last_col)
