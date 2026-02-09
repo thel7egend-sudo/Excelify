@@ -2,6 +2,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QHBoxLayout,
+    QActionGroup,
     QMenu,
     QMessageBox,
     QPlainTextEdit,
