@@ -16,17 +16,40 @@ class InputDevice:
 def list_input_devices() -> List[InputDevice]:
     devices = sd.query_devices()
     inputs: List[InputDevice] = []
+    seen_names = set()
+    skip_name_fragments = (
+        "sound mapper",
+        "primary sound capture",
+        "stereo mix",
+        "speaker",
+        "output",
+    )
     for device_id, info in enumerate(devices):
         if info.get("max_input_channels", 0) <= 0:
             continue
+        name = info.get("name", f"Device {device_id}")
+        name_key = name.strip().lower()
+        if any(fragment in name_key for fragment in skip_name_fragments):
+            continue
+        if name_key in seen_names:
+            continue
         try:
             sd.check_input_settings(device=device_id, channels=1)
+            stream = sd.InputStream(
+                samplerate=info.get("default_samplerate", 16000.0),
+                channels=1,
+                device=device_id,
+            )
+            stream.start()
+            stream.stop()
+            stream.close()
         except Exception:
             continue
+        seen_names.add(name_key)
         inputs.append(
             InputDevice(
                 device_id=device_id,
-                name=info.get("name", f"Device {device_id}"),
+                name=name,
                 max_input_channels=info.get("max_input_channels", 0),
                 default_samplerate=info.get("default_samplerate", 16000.0),
             )
