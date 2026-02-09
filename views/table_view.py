@@ -324,18 +324,10 @@ class TableView(QTableView):
             return
 
         self._copy_selection_to_clipboard()
+        text = QApplication.clipboard().text()
         r1, c1, r2, c2 = rect
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
                 index = self.model().index(r, c)
                 if index.isValid():
                     self.model().setData(index, "", Qt.EditRole)
-
-        start_row, start_col, _, _ = rect
-        rows = text.splitlines() or [""]
-        for r_offset, row_text in enumerate(rows):
-            cols = row_text.split("\t")
-            for c_offset, value in enumerate(cols):
-                index = self.model().index(start_row + r_offset, start_col + c_offset)
-                if index.isValid():
-                    self.model().setData(index, value, Qt.EditRole)
