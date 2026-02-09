@@ -49,6 +49,12 @@ class TableView(QTableView):
                 mode != "rectangle"                    or self.selectionModel().isSelected(index)
             )
         ):
+            selection = self.selectionModel()
+            if selection is not None and not selection.isSelected(index):
+                selection.setCurrentIndex(
+                    index,
+                    QItemSelectionModel.ClearAndSelect
+                )
 
             # 🔒 HARD SWITCH: disable Qt selection
             self._saved_selection_mode = self.selectionMode()
@@ -120,6 +126,7 @@ class TableView(QTableView):
 
             end_index = self.indexAt(event.pos())
             selected = self.selectionModel().selectedIndexes()
+            mode = self.get_swap_mode()
 
             if end_index.isValid() and selected:
                 rows = [i.row() for i in selected]
@@ -134,8 +141,6 @@ class TableView(QTableView):
                     end_index.row(),
                     end_index.column()
                 )
-
-                mode = self.get_swap_mode()
 
                 if mode == "rectangle":
                     self.block_swap_requested.emit(src_rect, dest_top_left)
@@ -166,7 +171,8 @@ class TableView(QTableView):
             self._ghost_rect = None
             self._drag_start_pos = None
             self.clearSelection()
-            self.clear_swap_mode()
+            if mode == "rectangle":
+                self.clear_swap_mode()
             self.viewport().update()
             event.accept()
             return
@@ -325,3 +331,11 @@ class TableView(QTableView):
                 if index.isValid():
                     self.model().setData(index, "", Qt.EditRole)
 
+        start_row, start_col, _, _ = rect
+        rows = text.splitlines() or [""]
+        for r_offset, row_text in enumerate(rows):
+            cols = row_text.split("\t")
+            for c_offset, value in enumerate(cols):
+                index = self.model().index(start_row + r_offset, start_col + c_offset)
+                if index.isValid():
+                    self.model().setData(index, value, Qt.EditRole)
