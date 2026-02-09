@@ -2,7 +2,6 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QHBoxLayout,
-    QActionGroup,
     QMenu,
     QMessageBox,
     QPlainTextEdit,
@@ -22,7 +21,7 @@ from PySide6.QtCore import (
     Signal,
     Qt,
 )
-from PySide6.QtGui import QActionGroup, QColor, QPainter, QTextCursor
+from PySide6.QtGui import QColor, QPainter, QTextCursor
 from PySide6.QtWidgets import QStyle, QStyleOptionToolButton
 
 from models.table_model import TableModel
@@ -223,6 +222,7 @@ class EditorPage(QWidget):
         self.dictate_menu = QMenu(self.dictate_btn)
         self.dictate_menu.aboutToShow.connect(self._populate_mic_menu)
         self.dictate_btn.setMenu(self.dictate_menu)
+        self._mic_actions = []
 
         self._dictate_pulse = QPropertyAnimation(self.dictate_btn, b"pulse_scale")
         self._dictate_pulse.setStartValue(1.0)
@@ -843,16 +843,17 @@ class EditorPage(QWidget):
 
     def _populate_mic_menu(self):
         self.dictate_menu.clear()
-        group = QActionGroup(self.dictate_menu)
-        group.setExclusive(True)
+        self._mic_actions = []
 
         default_action = self.dictate_menu.addAction("Default system mic")
         default_action.setCheckable(True)
         default_action.setData(None)
         if self.voice_controller.selected_device_id is None:
             default_action.setChecked(True)
-        default_action.triggered.connect(lambda: self._select_microphone(None))
-        group.addAction(default_action)
+        default_action.triggered.connect(
+            lambda checked=False, action=default_action: self._select_microphone_action(None, action)
+        )
+        self._mic_actions.append(default_action)
 
         devices = self.voice_controller.list_devices()
         if not devices:
@@ -866,9 +867,11 @@ class EditorPage(QWidget):
                 if device.device_id == self.voice_controller.selected_device_id:
                     action.setChecked(True)
                 action.triggered.connect(
-                    lambda checked=False, device_id=device.device_id: self._select_microphone(device_id)
+                    lambda checked=False, device_id=device.device_id, action=action: (
+                        self._select_microphone_action(device_id, action)
+                    )
                 )
-                group.addAction(action)
+                self._mic_actions.append(action)
 
         if self.voice_controller.is_recording:
             for action in self.dictate_menu.actions():
@@ -876,6 +879,14 @@ class EditorPage(QWidget):
 
     def _select_microphone(self, device_id):
         self.voice_controller.set_selected_device(device_id)
+
+    def _select_microphone_action(self, device_id, action):
+        self._select_microphone(device_id)
+        self._update_mic_checks(action)
+
+    def _update_mic_checks(self, selected_action):
+        for action in self._mic_actions:
+            action.setChecked(action is selected_action)
 
     def _on_dictate_started(self):
         self.dictate_btn.setText("⏺Dictate ∨")
