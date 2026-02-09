@@ -40,6 +40,7 @@ class VoiceController(QObject):
     transcription_ready = Signal(str, object)
     transcription_error = Signal(str)
     hint_requested = Signal(str)
+    level_changed = Signal(float)
 
     def __init__(self, max_duration_s: int = 90, model_name: str = "base"):
         super().__init__()
@@ -52,6 +53,11 @@ class VoiceController(QObject):
         self._timeout_timer.timeout.connect(self._handle_timeout)
         self._active_worker: Optional[TranscriptionWorker] = None
         self._recording_target: Optional[TranscriptionTarget] = None
+        self._level_timer = QTimer(self)
+        self._level_timer.setInterval(80)
+        self._level_timer.timeout.connect(self._emit_level)
+        self._recorder.set_level_callback(self._handle_level)
+        self._latest_level = 0.0
 
     @property
     def is_recording(self) -> bool:
@@ -81,12 +87,14 @@ class VoiceController(QObject):
             self._recording_target = None
             self.transcription_error.emit(str(exc))
             return
+        self._level_timer.start()
         self._timeout_timer.start(self._max_duration_s * 1000)
         self.recording_started.emit()
 
     def stop_recording(self, target: TranscriptionTarget, hint: Optional[str] = None) -> None:
         if not self.is_recording:
             return
+        self._level_timer.stop()
         self._timeout_timer.stop()
         audio = self._recorder.stop()
         self.recording_stopped.emit()
@@ -127,3 +135,11 @@ class VoiceController(QObject):
 
     def set_recording_target(self, target: TranscriptionTarget) -> None:
         self._recording_target = target
+
+    def _handle_level(self, level: float) -> None:
+        self._latest_level = level
+
+    def _emit_level(self) -> None:
+        if not self.is_recording:
+            return
+        self.level_changed.emit(self._latest_level)

@@ -75,6 +75,14 @@ class AudioRecorder:
         self._frames: List[np.ndarray] = []
         self._stream: Optional[sd.InputStream] = None
         self._recording = False
+        self._last_rms = 0.0
+        self._level_callback = None
+
+    def set_level_callback(self, callback):
+        self._level_callback = callback
+
+    def get_last_rms(self) -> float:
+        return self._last_rms
 
     @property
     def is_recording(self) -> bool:
@@ -113,3 +121,7 @@ class AudioRecorder:
         if status:
             pass
         self._frames.append(indata.copy())
+        rms = float(np.sqrt(np.mean(indata**2)))
+        self._last_rms = rms
+        if self._level_callback is not None:
+            self._level_callback(rms)
