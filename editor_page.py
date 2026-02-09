@@ -166,6 +166,7 @@ class EditorPage(QWidget):
         self.document = document
         self.sheet_buttons = []
         self.swap_mode = None
+        self.model = TableModel(document)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -235,7 +236,6 @@ class EditorPage(QWidget):
         layout.addWidget(tool_ribbon)
 
 
-        self.model = TableModel(document)
         self.view = TableView()
         self.view.get_swap_mode = lambda: self.swap_mode
         self.view.clear_swap_mode = self.clear_swap_mode
