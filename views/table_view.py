@@ -249,6 +249,7 @@ class TableView(QTableView):
         copy_action = menu.addAction("Copy")
         paste_action = menu.addAction("Paste")
         cut_action = menu.addAction("Cut")
+        delete_action = menu.addAction("Delete")
         action = menu.exec(self.viewport().mapToGlobal(pos))
 
         if action == swap_action:
@@ -261,6 +262,8 @@ class TableView(QTableView):
             self._paste_clipboard_to_selection()
         elif action == cut_action:
             self._cut_selection_to_clipboard()
+        elif action == delete_action:
+            self._delete_selection_contents()
     
     def clear_swap_mode(self):
         self.swap_mode = None
@@ -325,6 +328,18 @@ class TableView(QTableView):
 
         self._copy_selection_to_clipboard()
         text = QApplication.clipboard().text()
+        r1, c1, r2, c2 = rect
+        for r in range(r1, r2 + 1):
+            for c in range(c1, c2 + 1):
+                index = self.model().index(r, c)
+                if index.isValid():
+                    self.model().setData(index, "", Qt.EditRole)
+
+    def _delete_selection_contents(self):
+        rect = self._selected_rect()
+        if rect is None:
+            return
+
         r1, c1, r2, c2 = rect
         for r in range(r1, r2 + 1):
             for c in range(c1, c2 + 1):
