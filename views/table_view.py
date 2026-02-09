@@ -87,6 +87,10 @@ class TableView(QTableView):
             self._paste_clipboard_to_selection()
             return
 
+        if event.matches(QKeySequence.Cut):
+            self._cut_selection_to_clipboard()
+            return
+
         super().keyPressEvent(event)
 
     def mouseMoveEvent(self, event):
@@ -244,6 +248,7 @@ class TableView(QTableView):
         swap_action = menu.addAction("Swap Rectangle")
         copy_action = menu.addAction("Copy")
         paste_action = menu.addAction("Paste")
+        cut_action = menu.addAction("Cut")
         action = menu.exec(self.viewport().mapToGlobal(pos))
 
         if action == swap_action:
@@ -254,6 +259,8 @@ class TableView(QTableView):
             self._copy_selection_to_clipboard()
         elif action == paste_action:
             self._paste_clipboard_to_selection()
+        elif action == cut_action:
+            self._cut_selection_to_clipboard()
     
     def clear_swap_mode(self):
         self.swap_mode = None
@@ -265,6 +272,7 @@ class TableView(QTableView):
         selection = self.selectionModel()
         if selection is None:
             return None
+
         selected = selection.selectedIndexes()
         if not selected:
             index = self.currentIndex()
@@ -300,6 +308,28 @@ class TableView(QTableView):
         rect = self._selected_rect()
         if rect is None:
             return
+
+        start_row, start_col, _, _ = rect
+        rows = text.splitlines() or [""]
+        for r_offset, row_text in enumerate(rows):
+            cols = row_text.split("\t")
+            for c_offset, value in enumerate(cols):
+                index = self.model().index(start_row + r_offset, start_col + c_offset)
+                if index.isValid():
+                    self.model().setData(index, value, Qt.EditRole)
+
+    def _cut_selection_to_clipboard(self):
+        rect = self._selected_rect()
+        if rect is None:
+            return
+
+        self._copy_selection_to_clipboard()
+        r1, c1, r2, c2 = rect
+        for r in range(r1, r2 + 1):
+            for c in range(c1, c2 + 1):
+                index = self.model().index(r, c)
+                if index.isValid():
+                    self.model().setData(index, "", Qt.EditRole)
 
         start_row, start_col, _, _ = rect
         rows = text.splitlines() or [""]
