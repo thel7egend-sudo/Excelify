@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QTableView
+from PySide6.QtWidgets import QTableView, QApplication
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtCore import QItemSelectionModel
 from PySide6.QtGui import QPainter, QColor, QKeySequence
@@ -61,26 +61,29 @@ class TableView(QTableView):
             event.accept()
             return  # ⛔ STOP Qt completely
 
+        if event.button() == Qt.LeftButton:
+            self.setFocus(Qt.MouseFocusReason)
+
         super().mousePressEvent(event)
 
-        if event.button() == Qt.LeftButton and self.zoom_box:
+    def mouseDoubleClickEvent(self, event):
+        super().mouseDoubleClickEvent(event)
+        if event.button() == Qt.LeftButton and self.zoom_box and self.zoom_box.isVisible():
             self.zoom_box.setFocus(Qt.MouseFocusReason)
             self.zoom_box.selectAll()
 
     def keyPressEvent(self, event):
-        if self.zoom_box:
-            if event.matches(QKeySequence.Paste):
-                self.zoom_box.setFocus(Qt.OtherFocusReason)
-                self.zoom_box.selectAll()
-                self.zoom_box.paste()
-                return
+        if event.matches(QKeySequence.Copy):
+            self._copy_selection_to_clipboard()
+            return
 
-            text = event.text()
-            if text and not (event.modifiers() & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)):
-                self.zoom_box.setFocus(Qt.OtherFocusReason)
-                self.zoom_box.selectAll()
-                self.zoom_box.insert(text)
-                return
+        if event.matches(QKeySequence.Paste):
+            self._paste_clipboard_to_selection()
+            return
+
+        if event.matches(QKeySequence.Cut):
+            self._cut_selection_to_clipboard()
+            return
 
         super().keyPressEvent(event)
 
@@ -229,19 +232,32 @@ class TableView(QTableView):
         if not index.isValid():
             return
 
-        if not self.selectionModel().isSelected(index):
+        selection = self.selectionModel()
+        if selection is None or not selection.isSelected(index):
             return
 
         from PySide6.QtWidgets import QMenu
         menu = QMenu(self)
 
         swap_action = menu.addAction("Swap Rectangle")
+        copy_action = menu.addAction("Copy")
+        paste_action = menu.addAction("Paste")
+        cut_action = menu.addAction("Cut")
+        delete_action = menu.addAction("Delete")
         action = menu.exec(self.viewport().mapToGlobal(pos))
 
         if action == swap_action:
             parent = self.parent()
             if hasattr(parent, "arm_rectangle_swap"):
                 parent.arm_rectangle_swap()
+        elif action == copy_action:
+            self._copy_selection_to_clipboard()
+        elif action == paste_action:
+            self._paste_clipboard_to_selection()
+        elif action == cut_action:
+            self._cut_selection_to_clipboard()
+        elif action == delete_action:
+            self._delete_selection_contents()
     
     def clear_swap_mode(self):
         self.swap_mode = None
@@ -249,4 +265,78 @@ class TableView(QTableView):
     def set_zoom_box(self, zoom_box):
         self.zoom_box = zoom_box
 
+    def _selected_rect(self):
+        selection = self.selectionModel()
+        if selection is None:
+            return None
 
+        selected = selection.selectedIndexes()
+        if not selected:
+            index = self.currentIndex()
+            if not index.isValid():
+                return None
+            return index.row(), index.column(), index.row(), index.column()
+
+        rows = [i.row() for i in selected]
+        cols = [i.column() for i in selected]
+        return min(rows), min(cols), max(rows), max(cols)
+
+    def _copy_selection_to_clipboard(self):
+        rect = self._selected_rect()
+        if rect is None:
+            return
+
+        r1, c1, r2, c2 = rect
+        lines = []
+        for r in range(r1, r2 + 1):
+            row_values = []
+            for c in range(c1, c2 + 1):
+                value = self.model().data(self.model().index(r, c), Qt.DisplayRole)
+                row_values.append("" if value is None else str(value))
+            lines.append("\t".join(row_values))
+
+        QApplication.clipboard().setText("\n".join(lines))
+
+    def _paste_clipboard_to_selection(self):
+        text = QApplication.clipboard().text()
+        if text == "":
+            return
+
+        rect = self._selected_rect()
+        if rect is None:
+            return
+
+        start_row, start_col, _, _ = rect
+        rows = text.splitlines() or [""]
+        for r_offset, row_text in enumerate(rows):
+            cols = row_text.split("\t")
+            for c_offset, value in enumerate(cols):
+                index = self.model().index(start_row + r_offset, start_col + c_offset)
+                if index.isValid():
+                    self.model().setData(index, value, Qt.EditRole)
+
+    def _cut_selection_to_clipboard(self):
+        rect = self._selected_rect()
+        if rect is None:
+            return
+
+        self._copy_selection_to_clipboard()
+        text = QApplication.clipboard().text()
+        r1, c1, r2, c2 = rect
+        for r in range(r1, r2 + 1):
+            for c in range(c1, c2 + 1):
+                index = self.model().index(r, c)
+                if index.isValid():
+                    self.model().setData(index, "", Qt.EditRole)
+
+    def _delete_selection_contents(self):
+        rect = self._selected_rect()
+        if rect is None:
+            return
+
+        r1, c1, r2, c2 = rect
+        for r in range(r1, r2 + 1):
+            for c in range(c1, c2 + 1):
+                index = self.model().index(r, c)
+                if index.isValid():
+                    self.model().setData(index, "", Qt.EditRole)
