@@ -1,17 +1,7 @@
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QToolButton, QMenu
 from PySide6.QtWidgets import (
-    QApplication,
-    QCheckBox,
-    QHBoxLayout,
-    QMenu,
-    QMessageBox,
-    QPlainTextEdit,
-    QPushButton,
-    QSizePolicy,
-    QToolButton,
-    QToolTip,
-    QVBoxLayout,
-    QWidget,
-    QTableView,
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QToolButton, QMenu,
+    QPlainTextEdit, QTableView, QApplication, QSizePolicy, QCheckBox, QMessageBox
 )
 from PySide6.QtCore import (
     Property,
@@ -213,6 +203,10 @@ class EditorPage(QWidget):
 
         ribbon_layout.addStretch()
 
+        self.view = TableView()
+        self.view.get_swap_mode = lambda: self.swap_mode
+        self.view.clear_swap_mode = self.clear_swap_mode
+
         self.undo_btn = QPushButton("Undo: ↶")
         self.redo_btn = QPushButton("Redo: ↷")
         for btn in (self.undo_btn, self.redo_btn):
@@ -221,6 +215,14 @@ class EditorPage(QWidget):
         self.redo_btn.clicked.connect(self.model.redo)
         ribbon_layout.addWidget(self.undo_btn)
         ribbon_layout.addWidget(self.redo_btn)
+
+        self.dictate_btn = QToolButton()
+        self.dictate_btn.setText("Dictate")
+        self.dictate_btn.setPopupMode(QToolButton.MenuButtonPopup)
+        dictate_menu = QMenu(self.dictate_btn)
+        self.dictate_btn.setMenu(dictate_menu)
+        self.dictate_btn.setFixedHeight(32)
+        ribbon_layout.addWidget(self.dictate_btn)
 
         # 🔹 Export button (RIGHT)
         self.export_btn = QPushButton("Export to Excel")
@@ -232,22 +234,7 @@ class EditorPage(QWidget):
 
         ribbon_layout.addWidget(self.export_btn)
 
-
         layout.addWidget(tool_ribbon)
-
-
-        self.view = TableView()
-        self.view.get_swap_mode = lambda: self.swap_mode
-        self.view.clear_swap_mode = self.clear_swap_mode
-
-        self.undo_btn = QPushButton("Undo: ↶")
-        self.redo_btn = QPushButton("Redo: ↷")
-        for btn in (self.undo_btn, self.redo_btn):
-            btn.setFixedHeight(32)
-        self.undo_btn.clicked.connect(self.model.undo)
-        self.redo_btn.clicked.connect(self.model.redo)
-        ribbon_layout.insertWidget(ribbon_layout.count() - 1, self.undo_btn)
-        ribbon_layout.insertWidget(ribbon_layout.count() - 1, self.redo_btn)
 
 
         self.view.setModel(self.model)
