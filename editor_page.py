@@ -341,6 +341,14 @@ class EditorPage(QWidget):
         self.voice_controller.hint_requested.connect(self._show_dictate_hint)
         self.voice_controller.level_changed.connect(self._on_dictate_level)
 
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
         self._zoom_box_geometry = None
         self._zoom_box_ratio = (0.7, 0.1)
         self._zoom_syncing = False
@@ -766,13 +774,14 @@ class EditorPage(QWidget):
     def _commit_zoom_box(self):
         if not self.zoom_box_host.isVisible():
             return
+        # Keep active cell text synchronized before any Enter behavior.
+        self._push_zoom_text_to_model()
         marker_positions = self.zoom_box.marker_positions()
         if marker_positions:
             self._commit_zoom_box_segments(marker_positions)
             self.zoom_box.clear_markers()
             return
 
-        self._push_zoom_text_to_model()
         if self._enter_moves_right:
             self._advance_to_next_cell()
         else:
@@ -823,7 +832,7 @@ class EditorPage(QWidget):
     def _commit_zoom_box_segments(self, marker_positions):
         text = self.zoom_box.toPlainText()
         length = len(text)
-        positions = [p for p in marker_positions if 0 < p < length]
+        positions = self._normalized_marker_positions(marker_positions, length)
         if not positions:
             self._push_zoom_text_to_model()
             return
@@ -874,6 +883,22 @@ class EditorPage(QWidget):
 
         last_row, last_col = targets[-1]
         self._set_current_index(last_row, last_col)
+
+    def _normalized_marker_positions(self, marker_positions, length):
+        if length <= 1:
+            return []
+
+        normalized = []
+        for pos in marker_positions:
+            try:
+                p = int(pos)
+            except (TypeError, ValueError):
+                continue
+            # Clamp to valid split points so one Enter consistently works.
+            p = max(1, min(p, length - 1))
+            normalized.append(p)
+
+        return sorted(set(normalized))
 
     def _segment_targets(self, index, segment_count):
         row, col = index.row(), index.column()
