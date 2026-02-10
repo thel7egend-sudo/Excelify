@@ -349,6 +349,14 @@ class EditorPage(QWidget):
         self.voice_controller.hint_requested.connect(self._show_dictate_hint)
         self.voice_controller.level_changed.connect(self._on_dictate_level)
 
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
         self._zoom_box_geometry = None
         self._zoom_box_ratio = (0.7, 0.1)
         self._zoom_syncing = False

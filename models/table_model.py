@@ -56,20 +56,22 @@ class TableModel(QAbstractTableModel):
             row, col = index.row(), index.column()
 
             cells = self.document.active_sheet.cells
-            old_value = cells.get((row, col), "")
-            if value == old_value:
+            before = cells.get((row, col), "")
+            after = "" if value is None else str(value)
+
+            if after == before:
                 return False
 
-            if value == "":
+            if after == "":
                 cells.pop((row, col), None)
             else:
-                cells[(row, col)] = value
+                cells[(row, col)] = after
 
             after = cells.get((row, col), "")
             self._push_change({(row, col): before}, {(row, col): after})
             self.dataChanged.emit(index, index)
             self.save_requested.emit()
-            self._record_action([((row, col), old_value, value)])
+            self._push_change({(row, col): before}, {(row, col): after})
             return True
 
         return False
