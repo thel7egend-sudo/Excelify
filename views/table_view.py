@@ -87,6 +87,10 @@ class TableView(QTableView):
             self._paste_clipboard_to_selection()
             return
 
+        if event.matches(QKeySequence.Cut):
+            self._cut_selection_to_clipboard()
+            return
+
         super().keyPressEvent(event)
 
     def mouseMoveEvent(self, event):
@@ -244,6 +248,8 @@ class TableView(QTableView):
         swap_action = menu.addAction("Swap Rectangle")
         copy_action = menu.addAction("Copy")
         paste_action = menu.addAction("Paste")
+        cut_action = menu.addAction("Cut")
+        delete_action = menu.addAction("Delete")
         action = menu.exec(self.viewport().mapToGlobal(pos))
 
         if action == swap_action:
@@ -254,6 +260,10 @@ class TableView(QTableView):
             self._copy_selection_to_clipboard()
         elif action == paste_action:
             self._paste_clipboard_to_selection()
+        elif action == cut_action:
+            self._cut_selection_to_clipboard()
+        elif action == delete_action:
+            self._delete_selection_contents()
     
     def clear_swap_mode(self):
         self.swap_mode = None
@@ -265,6 +275,7 @@ class TableView(QTableView):
         selection = self.selectionModel()
         if selection is None:
             return None
+
         selected = selection.selectedIndexes()
         if not selected:
             index = self.currentIndex()
@@ -301,6 +312,7 @@ class TableView(QTableView):
         if rect is None:
             return
 
+        self.model().begin_macro()
         start_row, start_col, _, _ = rect
         model = self.model()
         if hasattr(model, "begin_compound_action"):
