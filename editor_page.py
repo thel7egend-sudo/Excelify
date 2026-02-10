@@ -213,6 +213,16 @@ class EditorPage(QWidget):
 
         ribbon_layout.addStretch()
 
+        self.undo_btn = QPushButton("↶ Undo")
+        self.undo_btn.setFixedHeight(36)
+        self.undo_btn.clicked.connect(self._undo_action)
+        self.redo_btn = QPushButton("↷ Redo")
+        self.redo_btn.setFixedHeight(36)
+        self.redo_btn.clicked.connect(self._redo_action)
+
+        ribbon_layout.addWidget(self.undo_btn)
+        ribbon_layout.addWidget(self.redo_btn)
+
         self.dictate_btn = DictateToolButton()
         dictate_font = QFont("Segoe UI Emoji", self.dictate_btn.font().pointSize())
         self.dictate_btn.setFont(dictate_font)
@@ -307,6 +317,14 @@ class EditorPage(QWidget):
         self.voice_controller.hint_requested.connect(self._show_dictate_hint)
         self.voice_controller.level_changed.connect(self._on_dictate_level)
 
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
         self._zoom_box_geometry = None
         self._zoom_box_ratio = (0.7, 0.1)
         self._zoom_syncing = False
@@ -342,6 +360,8 @@ class EditorPage(QWidget):
         self.view.selection_finalized.connect(self._sync_zoom_box_to_current)
         self.model.dataChanged.connect(self._on_model_data_changed)
         self.model.layoutChanged.connect(self._on_model_layout_changed)
+        self.model.undo_state_changed.connect(self._update_undo_redo_state)
+        self._update_undo_redo_state(self.model.can_undo(), self.model.can_redo())
 
         layout.addWidget(self.view)
         layout.addWidget(self.zoom_box_host)
@@ -916,6 +936,18 @@ class EditorPage(QWidget):
         if not self.zoom_box_host.isVisible():
             return
         self._sync_zoom_box_to_current()
+
+    def _undo_action(self):
+        self.model.undo()
+
+    def _redo_action(self):
+        self.model.redo()
+
+    def _update_undo_redo_state(self, can_undo, can_redo):
+        if hasattr(self, "undo_btn"):
+            self.undo_btn.setEnabled(can_undo)
+        if hasattr(self, "redo_btn"):
+            self.redo_btn.setEnabled(can_redo)
 
     def _toggle_dictate(self):
         if self.voice_controller.is_transcribing:
