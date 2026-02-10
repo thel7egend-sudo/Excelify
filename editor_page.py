@@ -1134,7 +1134,89 @@ class EditorPage(QWidget):
 
     def apply_grid_dark_mode(self, enabled: bool):
         if not enabled:
-            self.setStyleSheet("")
+            self.setStyleSheet("""
+            QWidget {
+                background-color: #e4e2da;
+                color: #222222;
+            }
+
+            QWidget#editorRibbon {
+                background-color: #d2d0c7;
+                border-bottom: 1px solid #bbb8ad;
+            }
+
+            QWidget#editorRibbon QPushButton,
+            QWidget#editorRibbon QToolButton {
+                background-color: #f5f5f5;
+                color: #222222;
+                border: 1px solid #b9b9b9;
+                border-radius: 6px;
+                padding: 4px 12px;
+            }
+
+            QWidget#editorRibbon QPushButton:hover,
+            QWidget#editorRibbon QToolButton:hover {
+                background-color: #ebebeb;
+            }
+
+            QWidget#editorRibbon QPushButton:checked {
+                background-color: #d7f0e4;
+                color: #1f3a2f;
+                border: 1px solid #7da58f;
+            }
+
+            QPushButton[sheetButton="true"] {
+                background-color: #f1f1f1;
+                color: #232323;
+                border: 1px solid #bcbcbc;
+                border-radius: 4px;
+                padding: 0 12px;
+            }
+
+            QPushButton[sheetButton="true"]:checked {
+                background-color: #d7f0e4;
+                color: #1f3a2f;
+                border: 1px solid #7da58f;
+            }
+
+            QTableView {
+                background-color: #ececec;
+                gridline-color: #c6c6c6;
+                color: #222222;
+                selection-background-color: #d7f0e4;
+                selection-color: #1f3a2f;
+                border: 1px solid #b9b9b9;
+            }
+
+            QHeaderView::section {
+                background-color: #d0ccc2;
+                color: #2a2a2a;
+                border: 1px solid #b7b4aa;
+                padding: 4px;
+            }
+
+            QTableCornerButton::section,
+            QTableView QTableCornerButton::section {
+                background-color: #d0ccc2;
+                border: 1px solid #b7b4aa;
+            }
+
+            QWidget#sheetBar {
+                background-color: #ddd9cf;
+                border-top: 1px solid #c0bcae;
+            }
+
+            QWidget#zoomBoxHost {
+                background-color: #d8d4ca;
+            }
+
+            QPlainTextEdit#zoomBox {
+                background-color: #f2f2f2;
+                color: #222222;
+                border: 1px solid #bcbcbc;
+                border-radius: 6px;
+            }
+            """)
             return
 
         self.setStyleSheet("""
