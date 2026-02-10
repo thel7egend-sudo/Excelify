@@ -65,6 +65,7 @@ class ZoomBoxEdit(QPlainTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._markers = []
+        self.setContextMenuPolicy(Qt.NoContextMenu)
 
     def keyPressEvent(self, event):
         if event.key() in (Qt.Key_Return, Qt.Key_Enter):
@@ -107,6 +108,9 @@ class ZoomBoxEdit(QPlainTextEdit):
             return
 
         super().mousePressEvent(event)
+
+    def contextMenuEvent(self, event):
+        event.accept()
 
     def paintEvent(self, event):
         super().paintEvent(event)
@@ -292,6 +296,14 @@ class EditorPage(QWidget):
         self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
         self.voice_controller.transcription_error.connect(self._on_dictate_error)
         self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
 
         self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
         self.voice_controller.recording_started.connect(self._on_dictate_started)
