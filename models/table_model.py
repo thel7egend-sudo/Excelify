@@ -272,6 +272,22 @@ class TableModel(QAbstractTableModel):
         Accepts dicts keyed by (row, col) with old/new values and records a
         single undo action equivalent to `_record_action` payloads.
         """
+        if before is None:
+            before = {}
+        if after is None:
+            after = {}
+
+        # If a caller already passes the normalized tuple payload,
+        # accept it directly.
+        if isinstance(before, list) and all(isinstance(item, tuple) and len(item) == 3 for item in before):
+            self._record_action(before)
+            return
+
+        if not isinstance(before, dict):
+            before = dict(before)
+        if not isinstance(after, dict):
+            after = dict(after)
+
         changes = []
         keys = set(before.keys()) | set(after.keys())
         for key in keys:

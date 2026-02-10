@@ -333,6 +333,14 @@ class EditorPage(QWidget):
         self.voice_controller.hint_requested.connect(self._show_dictate_hint)
         self.voice_controller.level_changed.connect(self._on_dictate_level)
 
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
         self._zoom_box_geometry = None
         self._zoom_box_ratio = (0.7, 0.1)
         self._zoom_syncing = False
@@ -857,16 +865,12 @@ class EditorPage(QWidget):
             if reply != QMessageBox.Yes:
                 return
 
-        self.model.begin_macro()
-        for i, (row, col) in enumerate(targets):
-            if i < len(segments) - 1 and i < len(targets) - 1:
-                s, e = segments[i]
-                value = text[s:e]
-            else:
-                s = segments[min(i, len(segments) - 1)][0]
-                value = text[s:]
-            self.model.setData(self.model.index(row, col), value, Qt.EditRole)
-        self.model.end_macro()
+        self.model.begin_compound_action()
+        try:
+            for row, col, value in values:
+                self.model.setData(self.model.index(row, col), value, Qt.EditRole)
+        finally:
+            self.model.end_compound_action()
 
         last_row, last_col = targets[-1]
         self._set_current_index(last_row, last_col)
