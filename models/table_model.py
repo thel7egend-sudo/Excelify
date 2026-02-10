@@ -266,6 +266,22 @@ class TableModel(QAbstractTableModel):
         self._redo_stack.clear()
         self._emit_undo_state()
 
+    def _push_change(self, before, after):
+        """Backward-compatible helper used by older undo code paths.
+
+        Accepts dicts keyed by (row, col) with old/new values and records a
+        single undo action equivalent to `_record_action` payloads.
+        """
+        changes = []
+        keys = set(before.keys()) | set(after.keys())
+        for key in keys:
+            old_value = before.get(key, "")
+            new_value = after.get(key, "")
+            if old_value != new_value:
+                changes.append((key, old_value, new_value))
+        if changes:
+            self._record_action(changes)
+
     def _emit_undo_state(self):
         self.undo_state_changed.emit(self.can_undo(), self.can_redo())
 
