@@ -258,6 +258,13 @@ class EditorPage(QWidget):
         layout.addWidget(tool_ribbon)
 
 
+        self.model = TableModel(document)
+        if not hasattr(self, "view"):
+            self.view = TableView()
+        self.view.get_swap_mode = lambda: self.swap_mode
+        self.view.clear_swap_mode = self.clear_swap_mode
+
+
         self.view.setModel(self.model)
         self.view.block_swap_requested.connect(self.handle_block_swap)
 
@@ -275,6 +282,14 @@ class EditorPage(QWidget):
         self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
         self.voice_controller.transcription_error.connect(self._on_dictate_error)
         self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
 
         self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
         self.voice_controller.recording_started.connect(self._on_dictate_started)
