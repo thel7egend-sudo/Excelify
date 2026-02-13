@@ -230,7 +230,7 @@ class EditorPage(QWidget):
         self.dictate_btn = DictateToolButton()
         dictate_font = QFont("Segoe UI Emoji", self.dictate_btn.font().pointSize())
         self.dictate_btn.setFont(dictate_font)
-        self.dictate_btn.setText("🎙️Dictate ∨")
+        self.dictate_btn.setText("🎙️Dictate")
         self.dictate_btn.setFixedHeight(36)
         self.dictate_btn.setToolButtonStyle(Qt.ToolButtonTextOnly)
         self.dictate_btn.setPopupMode(QToolButton.MenuButtonPopup)
@@ -296,6 +296,14 @@ class EditorPage(QWidget):
         self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
         self.voice_controller.transcription_error.connect(self._on_dictate_error)
         self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
 
         self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
         self.voice_controller.recording_started.connect(self._on_dictate_started)
@@ -1067,14 +1075,14 @@ class EditorPage(QWidget):
             action.setChecked(action is selected_action)
 
     def _on_dictate_started(self):
-        self.dictate_btn.setText("⏺Dictate ∨")
+        self.dictate_btn.setText("⏺Dictate")
         self.dictate_btn.setStyleSheet(self._dictate_recording_style)
         self._dictate_pulse.stop()
 
     def _on_dictate_stopped(self):
         self._dictate_pulse.stop()
         self.dictate_btn.setStyleSheet(self._dictate_idle_style)
-        self.dictate_btn.setText("🎙️Dictate ∨")
+        self.dictate_btn.setText("🎙️Dictate")
         self.dictate_btn.pulse_scale = 1.0
         self._dictate_level_ema = 0.0
 
