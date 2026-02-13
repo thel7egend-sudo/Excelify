@@ -94,57 +94,57 @@ class TopChrome(QWidget):
         if not enabled:
             self.setStyleSheet("""
             QWidget#topChrome {
-                background-color: #d2d0c7;
-                border-bottom: 1px solid #bbb8ad;
+                background-color: #ffffff;
+                border-bottom: 1px solid #e5e7eb;
             }
 
             QWidget#topChrome > QWidget {
-                background-color: #d2d0c7;
+                background-color: #ffffff;
             }
 
             QWidget#searchRow {
-                background-color: #d2d0c7;
+                background-color: #ffffff;
             }
 
             QWidget#searchRow > QWidget {
-                background-color: #d2d0c7;
+                background-color: #ffffff;
             }
 
             QLabel#homeLabel {
-                background-color: #f2f2f2;
-                color: #232323;
+                background-color: #f9fafb;
+                color: #111827;
                 padding: 6px 14px;
-                border-radius: 10px;
+                border-radius: 8px;
                 font-weight: 600;
-                border: 1px solid #b7b7b7;
+                border: 1px solid #e5e7eb;
             }
 
             QLabel#homeLabel:hover {
-                background-color: #e6e6e6;
+                background-color: #f3f4f6;
+                border: 1px solid #d1d5db;
             }
 
             QLineEdit#searchField {
-                background-color: #efefef;
-                color: #222222;
-                border: 1px solid #adadad;
-                padding: 6px;
-                border-radius: 6px;
+                background-color: #ffffff;
+                color: #111827;
+                border: 1px solid #d1d5db;
+                padding: 6px 10px;
+                border-radius: 8px;
                 margin: 0px;
             }
 
             QLineEdit#searchField:focus {
-                background-color: #f8f8f8;
-                border: 1px solid #8f8f8f;
+                border: 1px solid #256d85;
             }
 
             QListWidget#searchResults {
-                background-color: #ececec;
-                color: #222222;
-                border: 1px solid #c2c2c2;
+                background-color: #ffffff;
+                color: #111827;
+                border: 1px solid #e5e7eb;
             }
 
             QListWidget#searchResults::viewport {
-                background-color: #ececec;
+                background-color: #ffffff;
             }
 
             QListWidget#searchResults::item {
@@ -153,63 +153,65 @@ class TopChrome(QWidget):
             }
 
             QListWidget#searchResults::item:selected {
-                background-color: #dcebdc;
+                background-color: #e8f2f5;
+                color: #0f172a;
             }
             """)
             return
 
         self.setStyleSheet("""
         QWidget#topChrome {
-            background-color: #1e1e1e;
-            border-bottom: 1px solid #3a3a3a;
+            background-color: #111827;
+            border-bottom: 1px solid #374151;
         }
 
         QWidget#topChrome > QWidget {
-            background-color: #1e1e1e;
+            background-color: #111827;
         }
 
         QWidget#searchRow {
-            background-color: #252526;
+            background-color: #111827;
         }
 
         QWidget#searchRow > QWidget {
-            background-color: #252526;
+            background-color: #111827;
         }
 
         QLabel#homeLabel {
-            background-color: #2d2d30;
-            color: #e6e6e6;
+            background-color: #1f2937;
+            color: #e5e7eb;
             padding: 6px 14px;
-            border-radius: 10px;
+            border-radius: 8px;
             font-weight: 600;
+            border: 1px solid #374151;
         }
 
         QLabel#homeLabel:hover {
-            background-color: #3a3a3a;
+            background-color: #273449;
+            border: 1px solid #4b5563;
         }
 
         QLineEdit#searchField {
-            background-color: #1f2124;
-            color: #e6e6e6;
-            border: 1px solid #3a3a3a;
-            padding: 6px;
-            border-radius: 6px;
+            background-color: #1f2937;
+            color: #e5e7eb;
+            border: 1px solid #374151;
+            padding: 6px 10px;
+            border-radius: 8px;
             margin: 0px;
         }
 
         QLineEdit#searchField:focus {
-            background-color: #1f2124;
-            border: 1px solid #4a4f55;
+            border: 1px solid #256d85;
         }
 
         QListWidget#searchResults {
-            background-color: #1f2124;
-            color: #e6e6e6;
-            border: 1px solid #2f3237;
+            background-color: #1f2937;
+            color: #e5e7eb;
+            border: 1px solid #374151;
         }
 
         QListWidget#searchResults::viewport {
-            background-color: #1f2124;
+            background-color: #1f2937;
         }
 
         QListWidget#searchResults::item {
@@ -218,7 +220,7 @@ class TopChrome(QWidget):
         }
 
         QListWidget#searchResults::item:selected {
-            background-color: #2b2f35;
+            background-color: #1f4250;
+            color: #ffffff;
         }
         """)
-    

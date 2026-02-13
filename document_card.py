@@ -31,37 +31,29 @@ class DocumentCard(QFrame):
             self.setStyleSheet("""
                 QFrame {
                     background: #ffffff;
-                    border-radius: 8px;
-                    border: 2px solid #111111;
+                    border-radius: 10px;
+                    border: 1px solid #e5e7eb;
                 }
                 QFrame:hover {
-                    border: 2px solid #000000;
+                    border: 1px solid #d1d5db;
                     background: #ffffff;
                 }
             """)
-            self.label.setStyleSheet("color: #111111; font-weight: 500;")
+            self.label.setStyleSheet("color: #111827; font-weight: 400;")
             return
 
         self.setStyleSheet("""
             QFrame {
-                background: qlineargradient(
-                    x1: 0, y1: 0, x2: 1, y2: 1,
-                    stop: 0 #14382d,
-                    stop: 1 #225848
-                );
-                border-radius: 8px;
-                border: 2px solid #3d836a;
+                background: #1f2937;
+                border-radius: 10px;
+                border: 1px solid #374151;
             }
             QFrame:hover {
-                border: 2px solid #57a083;
-                background: qlineargradient(
-                    x1: 0, y1: 0, x2: 1, y2: 1,
-                    stop: 0 #184234,
-                    stop: 1 #27614f
-                );
+                border: 1px solid #4b5563;
+                background: #273449;
             }
         """)
-        self.label.setStyleSheet("color: #d8ffef; font-weight: 600;")
+        self.label.setStyleSheet("color: #e5e7eb; font-weight: 400;")
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
