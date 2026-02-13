@@ -184,8 +184,8 @@ class HomePage(QWidget):
         if not enabled:
             self.setStyleSheet("""
             QWidget#homeLeft {
-                background: #d8ece1;
-                border-right: 1px solid #b8d6c9;
+                background: #d2d0c7;
+                border-right: 1px solid #bbb8ad;
             }
 
             QWidget#homeContainer {

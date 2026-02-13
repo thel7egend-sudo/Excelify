@@ -94,12 +94,12 @@ class TopChrome(QWidget):
         if not enabled:
             self.setStyleSheet("""
             QWidget#topChrome {
-                background-color: #d8ece1;
-                border-bottom: 1px solid #b8d6c9;
+                background-color: #d2d0c7;
+                border-bottom: 1px solid #bbb8ad;
             }
 
             QWidget#topChrome > QWidget {
-                background-color: #d8ece1;
+                background-color: #d2d0c7;
             }
 
             QWidget#searchRow {
