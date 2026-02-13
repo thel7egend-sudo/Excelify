@@ -1185,7 +1185,7 @@ class EditorPage(QWidget):
             }
 
             QWidget#editorRibbon {
-                background-color: #ffffff;
+                background-color: #f9fafb;
                 border-bottom: 1px solid #e5e7eb;
             }
 
@@ -1201,8 +1201,13 @@ class EditorPage(QWidget):
 
             QWidget#editorRibbon QPushButton:hover,
             QWidget#editorRibbon QToolButton:hover {
-                background-color: #f9fafb;
-                border: 1px solid #d1d5db;
+                background-color: #f3f4f6;
+                border: 1px solid #cbd5e1;
+            }
+
+            QWidget#editorRibbon QPushButton:focus,
+            QWidget#editorRibbon QToolButton:focus {
+                border: 1px solid #256d85;
             }
 
             QWidget#editorRibbon QPushButton:checked {
@@ -1212,27 +1217,30 @@ class EditorPage(QWidget):
             }
 
             QPushButton[sheetButton="true"] {
-                background-color: #ffffff;
-                color: #111827;
+                background-color: #f3f4f6;
+                color: #4b5563;
                 border: 1px solid #e5e7eb;
                 border-radius: 6px;
                 padding: 0 12px;
+                font-weight: 400;
             }
 
             QPushButton[sheetButton="true"]:checked {
-                background-color: #256d85;
-                color: #ffffff;
-                border: 1px solid #256d85;
+                background-color: #ffffff;
+                color: #111827;
+                border: 1px solid #d1d5db;
+                border-bottom: 2px solid #256d85;
+                font-weight: 500;
             }
 
             QPushButton[sheetButton="true"]:hover {
-                background-color: #f9fafb;
+                background-color: #ffffff;
                 border: 1px solid #d1d5db;
             }
 
             QWidget#sheetBar QPushButton {
-                background-color: #ffffff;
-                color: #111827;
+                background-color: #f3f4f6;
+                color: #4b5563;
                 border: 1px solid #e5e7eb;
                 border-radius: 6px;
             }
@@ -1241,14 +1249,14 @@ class EditorPage(QWidget):
                 background-color: #ffffff;
                 gridline-color: #e5e7eb;
                 color: #111827;
-                selection-background-color: #256d85;
-                selection-color: #ffffff;
+                selection-background-color: transparent;
+                selection-color: #111827;
                 border: 1px solid #e5e7eb;
             }
 
             QTableView::item:selected {
-                background-color: #256d85;
-                color: #ffffff;
+                background-color: transparent;
+                color: #111827;
             }
 
             QAbstractScrollArea::viewport {
@@ -1264,9 +1272,10 @@ class EditorPage(QWidget):
             }
 
             QHeaderView::section {
-                background-color: #f9fafb;
+                background-color: #f3f4f6;
                 color: #374151;
                 border: 1px solid #e5e7eb;
+                border-bottom: 1px solid #d1d5db;
                 padding: 4px;
             }
 
@@ -1349,6 +1358,11 @@ class EditorPage(QWidget):
             border: 1px solid #4b5563;
         }
 
+        QWidget#editorRibbon QPushButton:focus,
+        QWidget#editorRibbon QToolButton:focus {
+            border: 1px solid #256d85;
+        }
+
         QWidget#editorRibbon QPushButton:checked {
             background-color: #256d85;
             color: #ffffff;
@@ -1362,27 +1376,30 @@ class EditorPage(QWidget):
         }
 
         QPushButton[sheetButton="true"] {
-            background-color: #1f2937;
-            color: #e5e7eb;
+            background-color: #273449;
+            color: #cbd5e1;
             border: 1px solid #374151;
             border-radius: 6px;
             padding: 0 12px;
+            font-weight: 400;
         }
 
         QPushButton[sheetButton="true"]:checked {
-            background-color: #256d85;
+            background-color: #1f2937;
             color: #ffffff;
-            border: 1px solid #256d85;
+            border: 1px solid #4b5563;
+            border-bottom: 2px solid #256d85;
+            font-weight: 500;
         }
 
         QPushButton[sheetButton="true"]:hover {
-            background-color: #273449;
+            background-color: #334155;
             border: 1px solid #4b5563;
         }
 
         QWidget#sheetBar QPushButton {
-            background-color: #1f2937;
-            color: #e5e7eb;
+            background-color: #273449;
+            color: #cbd5e1;
             border: 1px solid #374151;
             border-radius: 6px;
         }
@@ -1391,14 +1408,14 @@ class EditorPage(QWidget):
             background-color: #1f2937;
             gridline-color: #374151;
             color: #e5e7eb;
-            selection-background-color: #256d85;
-            selection-color: #ffffff;
+            selection-background-color: transparent;
+            selection-color: #e5e7eb;
             border: 1px solid #374151;
         }
 
         QTableView::item:selected {
-            background-color: #256d85;
-            color: #ffffff;
+            background-color: transparent;
+            color: #e5e7eb;
         }
 
         QAbstractScrollArea::viewport {
@@ -1414,9 +1431,10 @@ class EditorPage(QWidget):
         }
 
         QHeaderView::section {
-            background-color: #111827;
+            background-color: #1b2433;
             color: #e5e7eb;
             border: 1px solid #374151;
+            border-bottom: 1px solid #4b5563;
             padding: 4px;
         }
 
