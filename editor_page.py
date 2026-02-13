@@ -1226,10 +1226,9 @@ class EditorPage(QWidget):
             }
 
             QPushButton[sheetButton="true"]:checked {
-                background-color: #ffffff;
-                color: #111827;
-                border: 1px solid #d1d5db;
-                border-bottom: 2px solid #256d85;
+                background-color: #256d85;
+                color: #ffffff;
+                border: 1px solid #256d85;
                 font-weight: 500;
             }
 
@@ -1291,7 +1290,7 @@ class EditorPage(QWidget):
             }
 
             QWidget#zoomBoxHost {
-                background-color: #ffffff;
+                background-color: #f3f4f6;
                 border-top: 1px solid #e5e7eb;
             }
 
@@ -1385,10 +1384,9 @@ class EditorPage(QWidget):
         }
 
         QPushButton[sheetButton="true"]:checked {
-            background-color: #1f2937;
+            background-color: #256d85;
             color: #ffffff;
-            border: 1px solid #4b5563;
-            border-bottom: 2px solid #256d85;
+            border: 1px solid #256d85;
             font-weight: 500;
         }
 
@@ -1450,7 +1448,7 @@ class EditorPage(QWidget):
         }
 
         QWidget#zoomBoxHost {
-            background-color: #1f2937;
+            background-color: #1b2433;
             border-top: 1px solid #374151;
         }
 
