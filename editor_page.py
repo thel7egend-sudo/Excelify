@@ -1195,7 +1195,8 @@ class EditorPage(QWidget):
                 color: #111827;
                 border: 1px solid #e5e7eb;
                 border-radius: 8px;
-                padding: 4px 12px;
+                padding: 6px 14px;
+                font-weight: 500;
             }
 
             QWidget#editorRibbon QPushButton:hover,
@@ -1240,14 +1241,14 @@ class EditorPage(QWidget):
                 background-color: #ffffff;
                 gridline-color: #e5e7eb;
                 color: #111827;
-                selection-background-color: #e8f2f5;
-                selection-color: #0f172a;
+                selection-background-color: #256d85;
+                selection-color: #ffffff;
                 border: 1px solid #e5e7eb;
             }
 
             QTableView::item:selected {
-                background-color: #e8f2f5;
-                color: #0f172a;
+                background-color: #256d85;
+                color: #ffffff;
             }
 
             QAbstractScrollArea::viewport {
@@ -1338,7 +1339,8 @@ class EditorPage(QWidget):
             color: #e5e7eb;
             border: 1px solid #374151;
             border-radius: 8px;
-            padding: 4px 12px;
+            padding: 6px 14px;
+            font-weight: 500;
         }
 
         QWidget#editorRibbon QPushButton:hover,
@@ -1389,13 +1391,13 @@ class EditorPage(QWidget):
             background-color: #1f2937;
             gridline-color: #374151;
             color: #e5e7eb;
-            selection-background-color: #1f4250;
+            selection-background-color: #256d85;
             selection-color: #ffffff;
             border: 1px solid #374151;
         }
 
         QTableView::item:selected {
-            background-color: #1f4250;
+            background-color: #256d85;
             color: #ffffff;
         }
 

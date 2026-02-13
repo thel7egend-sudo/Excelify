@@ -1,7 +1,8 @@
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QScrollArea, QGridLayout, QPushButton, QFrame
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QScrollArea, QGridLayout, QPushButton, QFrame, QGraphicsDropShadowEffect
 from document_card import DocumentCard
 from document import Document
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QMessageBox
 class HomePage(QWidget):
     open_document_requested = Signal(object)
@@ -32,7 +33,7 @@ class HomePage(QWidget):
         left.setFixedWidth(160)
 
         left_layout = QVBoxLayout(left)
-        left_layout.setContentsMargins(12, 12, 12, 12)
+        left_layout.setContentsMargins(16, 16, 16, 16)
         left_layout.setSpacing(8)
 
         # spacer pushes button to bottom
@@ -64,30 +65,40 @@ class HomePage(QWidget):
 
         # RIGHT DOCUMENT AREA
         self.grid = QGridLayout()
-        self.grid.setContentsMargins(24, 24, 24, 24)
-        self.grid.setHorizontalSpacing(24)
-        self.grid.setVerticalSpacing(24)
+        self.grid.setContentsMargins(32, 32, 32, 32)
+        self.grid.setHorizontalSpacing(32)
+        self.grid.setVerticalSpacing(32)
 
         self.plus_btn = QPushButton("+")
-        self.plus_btn.setFixedSize(160, 120)
+        self.plus_btn.setFixedSize(176, 132)
         self.plus_btn.setObjectName("plusButton")
         self.plus_btn.clicked.connect(self.create_document)
 
         self.grid.addWidget(self.plus_btn, 0, 0)
 
-        container = QWidget()
-        container.setObjectName("homeContainer")
-        container.setLayout(self.grid)
+        self.container_surface = QWidget()
+        self.container_surface.setObjectName("homeContainer")
+        self.container_surface.setLayout(self.grid)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setWidget(container)
+        scroll.setWidget(self.container_surface)
         scroll.setObjectName("homeScroll")
         scroll.setFrameShape(QFrame.NoFrame)
 
         layout.addWidget(left)
         layout.addWidget(scroll)
         self.apply_dark_mode(False)
+
+    def _apply_surface_shadow(self, enabled: bool):
+        effect = QGraphicsDropShadowEffect(self.container_surface)
+        effect.setOffset(0, 2)
+        effect.setBlurRadius(8)
+        if enabled:
+            effect.setColor(QColor(0, 0, 0, 32))
+        else:
+            effect.setColor(QColor(0, 0, 0, 14))
+        self.container_surface.setGraphicsEffect(effect)
 
     def create_document(self):
         doc = Document(f"Untitled {len(self.documents)+1}")
@@ -191,12 +202,15 @@ class HomePage(QWidget):
             }
 
             QWidget#homeContainer {
-                background: #f7f8fa;
+                background: #ffffff;
+                border: 1px solid #eef0f3;
+                border-radius: 12px;
             }
 
             QScrollArea#homeScroll {
                 background: #f7f8fa;
                 border: none;
+                padding: 16px;
             }
 
             QScrollArea#homeScroll::corner {
@@ -214,7 +228,7 @@ class HomePage(QWidget):
             QPushButton {
                 background: #ffffff;
                 color: #111827;
-                border: 1px solid #e5e7eb;
+                border: 1px solid #d1d5db;
                 border-radius: 8px;
                 padding: 0 12px;
                 font-weight: 500;
@@ -236,6 +250,12 @@ class HomePage(QWidget):
                 border-radius: 10px;
                 font-size: 34px;
                 color: #6b7280;
+                background: #ffffff;
+            }
+
+            QPushButton#plusButton:hover {
+                border: 1px dashed #9ca3af;
+                color: #4b5563;
                 background: #ffffff;
             }
 
@@ -269,12 +289,15 @@ class HomePage(QWidget):
             }
 
             QWidget#homeContainer {
-                background: #111827;
+                background: #1f2937;
+                border: 1px solid #374151;
+                border-radius: 12px;
             }
 
             QScrollArea#homeScroll {
                 background: #111827;
                 border: none;
+                padding: 16px;
             }
 
             QScrollArea#homeScroll::corner {
@@ -343,6 +366,8 @@ class HomePage(QWidget):
         self.plus_btn.setObjectName("plusButton")
         self.plus_btn.style().unpolish(self.plus_btn)
         self.plus_btn.style().polish(self.plus_btn)
+
+        self._apply_surface_shadow(enabled)
 
         for card in self.cards.values():
             card.apply_dark_mode(enabled)

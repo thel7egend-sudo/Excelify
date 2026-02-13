@@ -42,13 +42,13 @@ class TopChrome(QWidget):
         row2 = QWidget()
         row2.setObjectName("searchRow")
         row2_layout = QHBoxLayout(row2)
-        row2_layout.setContentsMargins(16, 6, 16, 6)
+        row2_layout.setContentsMargins(16, 10, 16, 10)
         row2_layout.setSpacing(0)
 
         self.search = QLineEdit()
         self.search.setObjectName("searchField")
         self.search.setPlaceholderText("Search documents")
-        self.search.setFixedWidth(360)
+        self.search.setFixedWidth(420)
         self.search_results = QListWidget()
         self.search_results.setObjectName("searchResults")
         self.search_results.setAutoFillBackground(True)
@@ -115,6 +115,7 @@ class TopChrome(QWidget):
                 color: #111827;
                 padding: 6px 14px;
                 border-radius: 8px;
+                font-size: 14px;
                 font-weight: 600;
                 border: 1px solid #e5e7eb;
             }
@@ -127,14 +128,19 @@ class TopChrome(QWidget):
             QLineEdit#searchField {
                 background-color: #ffffff;
                 color: #111827;
-                border: 1px solid #d1d5db;
-                padding: 6px 10px;
-                border-radius: 8px;
+                border: 1px solid #c9ced6;
+                padding: 9px 12px;
+                border-radius: 9px;
                 margin: 0px;
             }
 
             QLineEdit#searchField:focus {
-                border: 1px solid #256d85;
+                border: 2px solid #256d85;
+                padding: 8px 11px;
+            }
+
+            QLineEdit#searchField::placeholder {
+                color: #6b7280;
             }
 
             QListWidget#searchResults {
@@ -182,6 +188,7 @@ class TopChrome(QWidget):
             color: #e5e7eb;
             padding: 6px 14px;
             border-radius: 8px;
+            font-size: 14px;
             font-weight: 600;
             border: 1px solid #374151;
         }
@@ -194,14 +201,19 @@ class TopChrome(QWidget):
         QLineEdit#searchField {
             background-color: #1f2937;
             color: #e5e7eb;
-            border: 1px solid #374151;
-            padding: 6px 10px;
-            border-radius: 8px;
+            border: 1px solid #4b5563;
+            padding: 9px 12px;
+            border-radius: 9px;
             margin: 0px;
         }
 
         QLineEdit#searchField:focus {
-            border: 1px solid #256d85;
+            border: 2px solid #256d85;
+            padding: 8px 11px;
+        }
+
+        QLineEdit#searchField::placeholder {
+            color: #9ca3af;
         }
 
         QListWidget#searchResults {
