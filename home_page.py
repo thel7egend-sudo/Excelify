@@ -1,7 +1,8 @@
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QScrollArea, QGridLayout, QPushButton, QFrame
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QScrollArea, QGridLayout, QPushButton, QFrame, QGraphicsDropShadowEffect
 from document_card import DocumentCard
 from document import Document
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QMessageBox
 class HomePage(QWidget):
     open_document_requested = Signal(object)
@@ -32,7 +33,7 @@ class HomePage(QWidget):
         left.setFixedWidth(160)
 
         left_layout = QVBoxLayout(left)
-        left_layout.setContentsMargins(12, 12, 12, 12)
+        left_layout.setContentsMargins(16, 16, 16, 16)
         left_layout.setSpacing(8)
 
         # spacer pushes button to bottom
@@ -64,28 +65,40 @@ class HomePage(QWidget):
 
         # RIGHT DOCUMENT AREA
         self.grid = QGridLayout()
-        self.grid.setSpacing(16)
+        self.grid.setContentsMargins(32, 32, 32, 32)
+        self.grid.setHorizontalSpacing(32)
+        self.grid.setVerticalSpacing(32)
 
         self.plus_btn = QPushButton("+")
-        self.plus_btn.setFixedSize(160, 120)
+        self.plus_btn.setFixedSize(176, 132)
         self.plus_btn.setObjectName("plusButton")
         self.plus_btn.clicked.connect(self.create_document)
 
         self.grid.addWidget(self.plus_btn, 0, 0)
 
-        container = QWidget()
-        container.setObjectName("homeContainer")
-        container.setLayout(self.grid)
+        self.container_surface = QWidget()
+        self.container_surface.setObjectName("homeContainer")
+        self.container_surface.setLayout(self.grid)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setWidget(container)
+        scroll.setWidget(self.container_surface)
         scroll.setObjectName("homeScroll")
         scroll.setFrameShape(QFrame.NoFrame)
 
         layout.addWidget(left)
         layout.addWidget(scroll)
         self.apply_dark_mode(False)
+
+    def _apply_surface_shadow(self, enabled: bool):
+        effect = QGraphicsDropShadowEffect(self.container_surface)
+        effect.setOffset(0, 2)
+        effect.setBlurRadius(8)
+        if enabled:
+            effect.setColor(QColor(0, 0, 0, 32))
+        else:
+            effect.setColor(QColor(0, 0, 0, 14))
+        self.container_surface.setGraphicsEffect(effect)
 
     def create_document(self):
         doc = Document(f"Untitled {len(self.documents)+1}")
@@ -184,71 +197,84 @@ class HomePage(QWidget):
         if not enabled:
             self.setStyleSheet("""
             QWidget#homeLeft {
-                background: #f2f2f2;
-                border-right: 1px solid #e0e0e0;
+                background: #f7f8fa;
+                border-right: 1px solid #e5e7eb;
             }
 
             QWidget#homeContainer {
-                background: #f2f2f2;
+                background: #ffffff;
+                border: 1px solid #eef0f3;
+                border-radius: 12px;
             }
 
             QScrollArea#homeScroll {
-                background: #f2f2f2;
+                background: #f7f8fa;
                 border: none;
+                padding: 16px;
             }
 
             QScrollArea#homeScroll::corner {
-                background: #f2f2f2;
+                background: #f7f8fa;
             }
 
             QScrollArea#homeScroll > QWidget {
-                background: #f2f2f2;
+                background: #f7f8fa;
             }
 
             QScrollArea#homeScroll > QWidget > QWidget {
-                background: #f2f2f2;
+                background: #f7f8fa;
             }
 
             QPushButton {
-                background: #f5f5f5;
-                border: 1px solid #bdbdbd;
-                border-radius: 6px;
-                padding: 0 8px;
+                background: #ffffff;
+                color: #111827;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                padding: 0 12px;
                 font-weight: 500;
             }
 
             QPushButton:hover {
-                background: #ebebeb;
+                background: #f9fafb;
+                border: 1px solid #d1d5db;
             }
 
             QPushButton:checked {
-                background: #e0e0e0;
-                border: 1px solid #b0b0b0;
+                background: #256d85;
+                border: 1px solid #256d85;
+                color: #ffffff;
             }
 
             QPushButton#plusButton {
-                border: 2px dashed #aaaaaa;
-                border-radius: 8px;
-                font-size: 36px;
-                background: #f2f2f2;
+                border: 1px dashed #d1d5db;
+                border-radius: 10px;
+                font-size: 34px;
+                color: #6b7280;
+                background: #ffffff;
+            }
+
+            QPushButton#plusButton:hover {
+                border: 1px dashed #9ca3af;
+                color: #4b5563;
+                background: #ffffff;
             }
 
             QScrollBar:vertical {
-                background: #e0e0e0;
+                background: #f3f4f6;
                 width: 10px;
                 margin: 0px;
             }
             QScrollBar::handle:vertical {
-                background: #9e9e9e;
+                background: #d1d5db;
                 min-height: 30px;
                 border-radius: 4px;
             }
             QScrollBar::handle:vertical:hover {
-                background: #7f7f7f;
+                background: #9ca3af;
             }
             QScrollBar::add-page:vertical,
             QScrollBar::sub-page:vertical {
-                background: #e0e0e0;
+                background: #f3f4f6;
             }
             QScrollBar::add-line:vertical,
             QScrollBar::sub-line:vertical {
@@ -258,74 +284,78 @@ class HomePage(QWidget):
         else:
             self.setStyleSheet("""
             QWidget#homeLeft {
-                background: #191a1c;
-                border-right: 1px solid #2a2b2e;
+                background: #111827;
+                border-right: 1px solid #374151;
             }
 
             QWidget#homeContainer {
-                background: #1b1c1f;
+                background: #1f2937;
+                border: 1px solid #374151;
+                border-radius: 12px;
             }
 
             QScrollArea#homeScroll {
-                background: #1b1c1f;
+                background: #111827;
                 border: none;
+                padding: 16px;
             }
 
             QScrollArea#homeScroll::corner {
-                background: #1b1c1f;
+                background: #111827;
             }
 
             QScrollArea#homeScroll > QWidget {
-                background: #1b1c1f;
+                background: #111827;
             }
 
             QScrollArea#homeScroll > QWidget > QWidget {
-                background: #1b1c1f;
+                background: #111827;
             }
 
             QPushButton {
-                background: #24262a;
-                color: #e6e6e6;
-                border: 1px solid #3a3d42;
-                border-radius: 6px;
-                padding: 0 8px;
+                background: #1f2937;
+                color: #e5e7eb;
+                border: 1px solid #374151;
+                border-radius: 8px;
+                padding: 0 12px;
                 font-weight: 500;
             }
 
             QPushButton:hover {
-                background: #2e3136;
+                background: #273449;
+                border: 1px solid #4b5563;
             }
 
             QPushButton:checked {
-                background: #2b5278;
-                border: 1px solid #3a6ba0;
+                background: #256d85;
+                border: 1px solid #256d85;
                 color: #ffffff;
             }
 
             QPushButton#plusButton {
-                border: 2px dashed #4a4d52;
-                border-radius: 8px;
-                font-size: 36px;
-                background: #1f2125;
-                color: #cfcfcf;
+                border: 1px dashed #4b5563;
+                border-radius: 10px;
+                font-size: 34px;
+                background: #1f2937;
+                color: #9ca3af;
             }
 
             QScrollBar:vertical {
-                background: #1b1c1f;
+                background: #111827;
                 width: 10px;
                 margin: 0px;
             }
             QScrollBar::handle:vertical {
-                background: #3a3d42;
+                background: #374151;
                 min-height: 30px;
                 border-radius: 4px;
             }
             QScrollBar::handle:vertical:hover {
-                background: #4a4f55;
+                background: #4b5563;
             }
             QScrollBar::add-page:vertical,
             QScrollBar::sub-page:vertical {
-                background: #1b1c1f;
+                background: #111827;
             }
             QScrollBar::add-line:vertical,
             QScrollBar::sub-line:vertical {
@@ -336,6 +366,8 @@ class HomePage(QWidget):
         self.plus_btn.setObjectName("plusButton")
         self.plus_btn.style().unpolish(self.plus_btn)
         self.plus_btn.style().polish(self.plus_btn)
+
+        self._apply_surface_shadow(enabled)
 
         for card in self.cards.values():
             card.apply_dark_mode(enabled)

@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QTableView, QApplication
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtCore import QItemSelectionModel
-from PySide6.QtGui import QPainter, QColor, QKeySequence
+from PySide6.QtGui import QPainter, QColor, QKeySequence, QPen
 
 class TableView(QTableView):
     drag_swap_requested = Signal(object, object)
@@ -109,13 +109,45 @@ class TableView(QTableView):
     def paintEvent(self, event):
         super().paintEvent(event)
 
+        painter = QPainter(self.viewport())
+
         if self._ghost_active and self._ghost_rect:
-            painter = QPainter(self.viewport())
-            painter.setPen(QColor(0, 120, 215))
-            painter.setBrush(QColor(0, 120, 215, 60))
+            painter.setPen(QColor(37, 109, 133))
+            painter.setBrush(QColor(37, 109, 133, 45))
             painter.drawRect(self._ghost_rect)
 
+        selection = self.selectionModel()
+        if selection is None:
+            return
 
+        selected = selection.selectedIndexes()
+        if not selected:
+            return
+
+        accent = QColor(37, 109, 133)
+
+        if len(selected) == 1:
+            rect = self.visualRect(selected[0]).adjusted(1, 1, -1, -1)
+            if rect.isValid():
+                painter.setPen(QPen(accent, 2))
+                painter.setBrush(Qt.NoBrush)
+                painter.drawRect(rect)
+            return
+
+        rows = [idx.row() for idx in selected]
+        cols = [idx.column() for idx in selected]
+        top_left = self.model().index(min(rows), min(cols))
+        bottom_right = self.model().index(max(rows), max(cols))
+        selection_rect = self.visualRect(top_left).united(self.visualRect(bottom_right)).adjusted(1, 1, -1, -1)
+
+        if selection_rect.isValid():
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(37, 109, 133, 16))
+            painter.drawRect(selection_rect)
+
+            painter.setPen(QPen(accent, 2))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRect(selection_rect)
 
     def mouseReleaseEvent(self, event):
         if self._ghost_active:
