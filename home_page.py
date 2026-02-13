@@ -184,53 +184,55 @@ class HomePage(QWidget):
         if not enabled:
             self.setStyleSheet("""
             QWidget#homeLeft {
-                background: #f2f2f2;
-                border-right: 1px solid #e0e0e0;
+                background: #d2d0c7;
+                border-right: 1px solid #bbb8ad;
             }
 
             QWidget#homeContainer {
-                background: #f2f2f2;
+                background: #ececec;
             }
 
             QScrollArea#homeScroll {
-                background: #f2f2f2;
+                background: #ececec;
                 border: none;
             }
 
             QScrollArea#homeScroll::corner {
-                background: #f2f2f2;
+                background: #ececec;
             }
 
             QScrollArea#homeScroll > QWidget {
-                background: #f2f2f2;
+                background: #ececec;
             }
 
             QScrollArea#homeScroll > QWidget > QWidget {
-                background: #f2f2f2;
+                background: #ececec;
             }
 
             QPushButton {
                 background: #f5f5f5;
-                border: 1px solid #bdbdbd;
+                color: #222;
+                border: 1px solid #9da3ad;
                 border-radius: 6px;
                 padding: 0 8px;
                 font-weight: 500;
             }
 
             QPushButton:hover {
-                background: #ebebeb;
+                background: #e8ebf0;
             }
 
             QPushButton:checked {
-                background: #e0e0e0;
-                border: 1px solid #b0b0b0;
+                background: #d7f0e4;
+                border: 1px solid #7da58f;
             }
 
             QPushButton#plusButton {
-                border: 2px dashed #aaaaaa;
+                border: 2px dashed #111111;
                 border-radius: 8px;
                 font-size: 36px;
-                background: #f2f2f2;
+                color: #111111;
+                background: #ffffff;
             }
 
             QScrollBar:vertical {
@@ -258,29 +260,29 @@ class HomePage(QWidget):
         else:
             self.setStyleSheet("""
             QWidget#homeLeft {
-                background: #191a1c;
-                border-right: 1px solid #2a2b2e;
+                background: #131b29;
+                border-right: 1px solid #203149;
             }
 
             QWidget#homeContainer {
-                background: #1b1c1f;
+                background: #0f1c2b;
             }
 
             QScrollArea#homeScroll {
-                background: #1b1c1f;
+                background: #0f1c2b;
                 border: none;
             }
 
             QScrollArea#homeScroll::corner {
-                background: #1b1c1f;
+                background: #0f1c2b;
             }
 
             QScrollArea#homeScroll > QWidget {
-                background: #1b1c1f;
+                background: #0f1c2b;
             }
 
             QScrollArea#homeScroll > QWidget > QWidget {
-                background: #1b1c1f;
+                background: #0f1c2b;
             }
 
             QPushButton {
@@ -303,11 +305,15 @@ class HomePage(QWidget):
             }
 
             QPushButton#plusButton {
-                border: 2px dashed #4a4d52;
+                border: 2px dashed #3d836a;
                 border-radius: 8px;
                 font-size: 36px;
-                background: #1f2125;
-                color: #cfcfcf;
+                background: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 1,
+                    stop: 0 #14382d,
+                    stop: 1 #225848
+                );
+                color: #d8ffef;
             }
 
             QScrollBar:vertical {

@@ -170,6 +170,7 @@ class EditorPage(QWidget):
         self.document = document
         self.sheet_buttons = []
         self.swap_mode = None
+        self.model = TableModel(document)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -268,7 +269,6 @@ class EditorPage(QWidget):
 
         ribbon_layout.addWidget(self.export_btn)
 
-
         layout.addWidget(tool_ribbon)
 
 
@@ -283,6 +283,99 @@ class EditorPage(QWidget):
         self.view.block_swap_requested.connect(self.handle_block_swap)
 
         self.view.drag_swap_requested.connect(self.handle_drag_swap)
+        self._restoring_sizes = False
+        self._default_row_height = self.view.verticalHeader().defaultSectionSize()
+        self._default_col_width = self.view.horizontalHeader().defaultSectionSize()
+        self.view.verticalHeader().sectionResized.connect(self._on_row_resized)
+        self.view.horizontalHeader().sectionResized.connect(self._on_col_resized)
+        self._apply_sheet_sizes()
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
 
         self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
         self.voice_controller.recording_started.connect(self._on_dictate_started)
@@ -390,6 +483,7 @@ class EditorPage(QWidget):
         self.refresh_sheet_buttons()
         self._deactivate_swaps()
         self._deactivate_zoom_box()
+        self._apply_sheet_sizes()
         self.document_changed.emit()
     def switch_sheet(self, index):
         self.document.active_sheet_index = index
@@ -397,6 +491,7 @@ class EditorPage(QWidget):
         self.refresh_sheet_buttons()
         self._deactivate_swaps()
         self._deactivate_zoom_box()
+        self._apply_sheet_sizes()
     def show_sheet_context_menu(self, index, button):
         from PySide6.QtWidgets import QMenu, QInputDialog, QMessageBox
 
@@ -461,6 +556,7 @@ class EditorPage(QWidget):
         self.refresh_sheet_buttons()
         self._deactivate_swaps()
         self._deactivate_zoom_box()
+        self._apply_sheet_sizes()
         self.document_changed.emit() 
     def handle_drag_swap(self, start_index, end_index):
         r1, c1 = start_index.row(), start_index.column()
@@ -584,6 +680,50 @@ class EditorPage(QWidget):
 
         if self._saved_edit_triggers is not None:
             self.view.setEditTriggers(self._saved_edit_triggers)
+
+    def _apply_sheet_sizes(self):
+        sheet = self.document.active_sheet
+        v_header = self.view.verticalHeader()
+        h_header = self.view.horizontalHeader()
+        self._restoring_sizes = True
+        try:
+            self._reset_header_sizes(
+                v_header, self.model.rowCount(), self._default_row_height
+            )
+            self._reset_header_sizes(
+                h_header, self.model.columnCount(), self._default_col_width
+            )
+            for row, height in sheet.row_heights.items():
+                v_header.resizeSection(row, height)
+            for col, width in sheet.col_widths.items():
+                h_header.resizeSection(col, width)
+        finally:
+            self._restoring_sizes = False
+
+    def _reset_header_sizes(self, header, count, default_size):
+        header.setDefaultSectionSize(default_size)
+        for index in range(count):
+            header.resizeSection(index, default_size)
+
+    def _on_row_resized(self, logical_index, old_size, new_size):
+        if self._restoring_sizes:
+            return
+        sheet = self.document.active_sheet
+        if new_size == self._default_row_height:
+            sheet.row_heights.pop(logical_index, None)
+        else:
+            sheet.row_heights[logical_index] = new_size
+        self.document_changed.emit()
+
+    def _on_col_resized(self, logical_index, old_size, new_size):
+        if self._restoring_sizes:
+            return
+        sheet = self.document.active_sheet
+        if new_size == self._default_col_width:
+            sheet.col_widths.pop(logical_index, None)
+        else:
+            sheet.col_widths[logical_index] = new_size
+        self.document_changed.emit()
 
     def _update_zoom_box_size_from_ratio(self):
         viewport = self.view.viewport().size()
@@ -1038,7 +1178,89 @@ class EditorPage(QWidget):
 
     def apply_grid_dark_mode(self, enabled: bool):
         if not enabled:
-            self.setStyleSheet("")
+            self.setStyleSheet("""
+            QWidget {
+                background-color: #e4e2da;
+                color: #222222;
+            }
+
+            QWidget#editorRibbon {
+                background-color: #d2d0c7;
+                border-bottom: 1px solid #bbb8ad;
+            }
+
+            QWidget#editorRibbon QPushButton,
+            QWidget#editorRibbon QToolButton {
+                background-color: #f5f5f5;
+                color: #222222;
+                border: 1px solid #b9b9b9;
+                border-radius: 6px;
+                padding: 4px 12px;
+            }
+
+            QWidget#editorRibbon QPushButton:hover,
+            QWidget#editorRibbon QToolButton:hover {
+                background-color: #ebebeb;
+            }
+
+            QWidget#editorRibbon QPushButton:checked {
+                background-color: #d7f0e4;
+                color: #1f3a2f;
+                border: 1px solid #7da58f;
+            }
+
+            QPushButton[sheetButton="true"] {
+                background-color: #f1f1f1;
+                color: #232323;
+                border: 1px solid #bcbcbc;
+                border-radius: 4px;
+                padding: 0 12px;
+            }
+
+            QPushButton[sheetButton="true"]:checked {
+                background-color: #d7f0e4;
+                color: #1f3a2f;
+                border: 1px solid #7da58f;
+            }
+
+            QTableView {
+                background-color: #ececec;
+                gridline-color: #c6c6c6;
+                color: #222222;
+                selection-background-color: #d7f0e4;
+                selection-color: #1f3a2f;
+                border: 1px solid #b9b9b9;
+            }
+
+            QHeaderView::section {
+                background-color: #d0ccc2;
+                color: #2a2a2a;
+                border: 1px solid #b7b4aa;
+                padding: 4px;
+            }
+
+            QTableCornerButton::section,
+            QTableView QTableCornerButton::section {
+                background-color: #d0ccc2;
+                border: 1px solid #b7b4aa;
+            }
+
+            QWidget#sheetBar {
+                background-color: #ddd9cf;
+                border-top: 1px solid #c0bcae;
+            }
+
+            QWidget#zoomBoxHost {
+                background-color: #d8d4ca;
+            }
+
+            QPlainTextEdit#zoomBox {
+                background-color: #f2f2f2;
+                color: #222222;
+                border: 1px solid #bcbcbc;
+                border-radius: 6px;
+            }
+            """)
             return
 
         self.setStyleSheet("""
