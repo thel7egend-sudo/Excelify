@@ -184,8 +184,8 @@ class HomePage(QWidget):
         if not enabled:
             self.setStyleSheet("""
             QWidget#homeLeft {
-                background: #8f939b;
-                border-right: 1px solid #727680;
+                background: #d8ece1;
+                border-right: 1px solid #b8d6c9;
             }
 
             QWidget#homeContainer {
@@ -228,15 +228,11 @@ class HomePage(QWidget):
             }
 
             QPushButton#plusButton {
-                border: 2px dashed #5f8f7a;
+                border: 2px dashed #111111;
                 border-radius: 8px;
                 font-size: 36px;
-                color: #2d5647;
-                background: qlineargradient(
-                    x1: 0, y1: 0, x2: 1, y2: 1,
-                    stop: 0 #d9f5e8,
-                    stop: 1 #bfead8
-                );
+                color: #111111;
+                background: #ffffff;
             }
 
             QScrollBar:vertical {

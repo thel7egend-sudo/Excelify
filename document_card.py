@@ -30,24 +30,16 @@ class DocumentCard(QFrame):
         if not enabled:
             self.setStyleSheet("""
                 QFrame {
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 1,
-                        stop: 0 #d9f5e8,
-                        stop: 1 #bfead8
-                    );
+                    background: #ffffff;
                     border-radius: 8px;
-                    border: 2px solid #5f8f7a;
+                    border: 2px solid #111111;
                 }
                 QFrame:hover {
-                    border: 2px solid #3f6f5a;
-                    background: qlineargradient(
-                        x1: 0, y1: 0, x2: 1, y2: 1,
-                        stop: 0 #c9efde,
-                        stop: 1 #ade0cb
-                    );
+                    border: 2px solid #000000;
+                    background: #ffffff;
                 }
             """)
-            self.label.setStyleSheet("color: #1f3a2f; font-weight: 600;")
+            self.label.setStyleSheet("color: #111111; font-weight: 500;")
             return
 
         self.setStyleSheet("""
