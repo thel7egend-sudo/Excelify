@@ -302,10 +302,15 @@ class TableView(QTableView):
             return
 
         start_row, start_col, _, _ = rect
+        model = self.model()
+        if hasattr(model, "begin_compound_action"):
+            model.begin_compound_action()
         rows = text.splitlines() or [""]
         for r_offset, row_text in enumerate(rows):
             cols = row_text.split("\t")
             for c_offset, value in enumerate(cols):
-                index = self.model().index(start_row + r_offset, start_col + c_offset)
+                index = model.index(start_row + r_offset, start_col + c_offset)
                 if index.isValid():
-                    self.model().setData(index, value, Qt.EditRole)
+                    model.setData(index, value, Qt.EditRole)
+        if hasattr(model, "end_compound_action"):
+            model.end_compound_action()
