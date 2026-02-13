@@ -30,28 +30,30 @@ class DocumentCard(QFrame):
         if not enabled:
             self.setStyleSheet("""
                 QFrame {
-                    background: #f7f7f7;
-                    border-radius: 8px;
-                    border: 1px solid #bdbdbd;
+                    background: #ffffff;
+                    border-radius: 10px;
+                    border: 1px solid #e5e7eb;
                 }
                 QFrame:hover {
-                    border: 1px solid #8f8f8f;
+                    border: 1px solid #d1d5db;
+                    background: #ffffff;
                 }
             """)
-            self.label.setStyleSheet("")
+            self.label.setStyleSheet("color: #111827; font-weight: 400;")
             return
 
         self.setStyleSheet("""
             QFrame {
-                background: #1f1f1f;
-                border-radius: 8px;
-                border: 1px solid #3a3a3a;
+                background: #1f2937;
+                border-radius: 10px;
+                border: 1px solid #374151;
             }
             QFrame:hover {
-                border: 1px solid #5a5a5a;
+                border: 1px solid #4b5563;
+                background: #273449;
             }
         """)
-        self.label.setStyleSheet("color: #e6e6e6;")
+        self.label.setStyleSheet("color: #e5e7eb; font-weight: 400;")
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
