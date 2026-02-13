@@ -35,6 +35,10 @@ class DocumentCard(QFrame):
 
     def apply_dark_mode(self, enabled: bool):
         if not enabled:
+            self._shadow_normal = (0, 2, 6, 22)
+            self._shadow_hover = (0, 4, 10, 30)
+            self._set_shadow(*self._shadow_normal)
+
             self.setStyleSheet("""
                 QFrame {
                     background: #ffffff;
@@ -49,18 +53,22 @@ class DocumentCard(QFrame):
             self.label.setStyleSheet("color: #111827; font-size: 14px; font-weight: 500;")
             return
 
+        self._shadow_normal = (0, 2, 6, 80)
+        self._shadow_hover = (0, 4, 10, 110)
+        self._set_shadow(*self._shadow_normal)
+
         self.setStyleSheet("""
             QFrame {
-                background: #1f2937;
+                background: #252525;
                 border-radius: 10px;
-                border: 1px solid #374151;
+                border: 1px solid rgba(255, 255, 255, 0.06);
             }
             QFrame:hover {
-                border: 1px solid #4b5563;
-                background: #273449;
+                border: 1px solid rgba(255, 255, 255, 0.10);
+                background: #2e2e2e;
             }
         """)
-        self.label.setStyleSheet("color: #e5e7eb; font-size: 14px; font-weight: 500;")
+        self.label.setStyleSheet("color: #eaeaea; font-size: 14px; font-weight: 500;")
 
     def _set_shadow(self, x_offset: int, y_offset: int, blur: int, alpha: int):
         effect = QGraphicsDropShadowEffect(self)

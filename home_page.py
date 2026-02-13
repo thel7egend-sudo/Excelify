@@ -284,46 +284,46 @@ class HomePage(QWidget):
         else:
             self.setStyleSheet("""
             QWidget#homeLeft {
-                background: #111827;
-                border-right: 1px solid #374151;
+                background: #202124;
+                border-right: 1px solid rgba(255, 255, 255, 0.06);
             }
 
             QWidget#homeContainer {
-                background: #1f2937;
-                border: 1px solid #374151;
+                background: #252525;
+                border: 1px solid rgba(255, 255, 255, 0.06);
                 border-radius: 12px;
             }
 
             QScrollArea#homeScroll {
-                background: #111827;
+                background: #202124;
                 border: none;
                 padding: 16px;
             }
 
             QScrollArea#homeScroll::corner {
-                background: #111827;
+                background: #202124;
             }
 
             QScrollArea#homeScroll > QWidget {
-                background: #111827;
+                background: #202124;
             }
 
             QScrollArea#homeScroll > QWidget > QWidget {
-                background: #111827;
+                background: #202124;
             }
 
             QPushButton {
-                background: #1f2937;
-                color: #e5e7eb;
-                border: 1px solid #374151;
+                background: #252525;
+                color: #eaeaea;
+                border: 1px solid rgba(255, 255, 255, 0.06);
                 border-radius: 8px;
                 padding: 0 12px;
                 font-weight: 500;
             }
 
             QPushButton:hover {
-                background: #273449;
-                border: 1px solid #4b5563;
+                background: #2e2e2e;
+                border: 1px solid rgba(255, 255, 255, 0.10);
             }
 
             QPushButton:checked {
@@ -333,29 +333,29 @@ class HomePage(QWidget):
             }
 
             QPushButton#plusButton {
-                border: 1px dashed #4b5563;
+                border: 1px dashed rgba(255, 255, 255, 0.10);
                 border-radius: 10px;
                 font-size: 34px;
-                background: #1f2937;
-                color: #9ca3af;
+                background: #252525;
+                color: #a0a0a0;
             }
 
             QScrollBar:vertical {
-                background: #111827;
+                background: #202124;
                 width: 10px;
                 margin: 0px;
             }
             QScrollBar::handle:vertical {
-                background: #374151;
+                background: rgba(255, 255, 255, 0.06);
                 min-height: 30px;
                 border-radius: 4px;
             }
             QScrollBar::handle:vertical:hover {
-                background: #4b5563;
+                background: rgba(255, 255, 255, 0.10);
             }
             QScrollBar::add-page:vertical,
             QScrollBar::sub-page:vertical {
-                background: #111827;
+                background: #202124;
             }
             QScrollBar::add-line:vertical,
             QScrollBar::sub-line:vertical {

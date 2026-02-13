@@ -167,41 +167,41 @@ class TopChrome(QWidget):
 
         self.setStyleSheet("""
         QWidget#topChrome {
-            background-color: #111827;
-            border-bottom: 1px solid #374151;
+            background-color: #202124;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         QWidget#topChrome > QWidget {
-            background-color: #111827;
+            background-color: #202124;
         }
 
         QWidget#searchRow {
-            background-color: #111827;
+            background-color: #202124;
         }
 
         QWidget#searchRow > QWidget {
-            background-color: #111827;
+            background-color: #202124;
         }
 
         QLabel#homeLabel {
-            background-color: #1f2937;
-            color: #e5e7eb;
+            background-color: #252525;
+            color: #eaeaea;
             padding: 6px 14px;
             border-radius: 8px;
             font-size: 14px;
             font-weight: 600;
-            border: 1px solid #374151;
+            border: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         QLabel#homeLabel:hover {
-            background-color: #273449;
-            border: 1px solid #4b5563;
+            background-color: #2e2e2e;
+            border: 1px solid rgba(255, 255, 255, 0.10);
         }
 
         QLineEdit#searchField {
-            background-color: #1f2937;
-            color: #e5e7eb;
-            border: 1px solid #4b5563;
+            background-color: #252525;
+            color: #eaeaea;
+            border: 1px solid rgba(255, 255, 255, 0.10);
             padding: 9px 12px;
             border-radius: 9px;
             margin: 0px;
@@ -213,17 +213,17 @@ class TopChrome(QWidget):
         }
 
         QLineEdit#searchField::placeholder {
-            color: #9ca3af;
+            color: #a0a0a0;
         }
 
         QListWidget#searchResults {
-            background-color: #1f2937;
-            color: #e5e7eb;
-            border: 1px solid #374151;
+            background-color: #252525;
+            color: #eaeaea;
+            border: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         QListWidget#searchResults::viewport {
-            background-color: #1f2937;
+            background-color: #252525;
         }
 
         QListWidget#searchResults::item {
@@ -232,7 +232,7 @@ class TopChrome(QWidget):
         }
 
         QListWidget#searchResults::item:selected {
-            background-color: #1f4250;
+            background-color: #256d85;
             color: #ffffff;
         }
         """)

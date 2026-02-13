@@ -1332,20 +1332,20 @@ class EditorPage(QWidget):
 
         self.setStyleSheet("""
         QWidget {
-            background-color: #111827;
-            color: #e5e7eb;
+            background-color: #202124;
+            color: #eaeaea;
         }
 
         QWidget#editorRibbon {
-            background-color: #1f2937;
-            border-bottom: 1px solid #374151;
+            background-color: #252525;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         QWidget#editorRibbon QPushButton,
         QWidget#editorRibbon QToolButton {
-            background-color: #1f2937;
-            color: #e5e7eb;
-            border: 1px solid #374151;
+            background-color: #2a2a2a;
+            color: #eaeaea;
+            border: 1px solid rgba(255, 255, 255, 0.06);
             border-radius: 8px;
             padding: 6px 14px;
             font-weight: 500;
@@ -1353,8 +1353,8 @@ class EditorPage(QWidget):
 
         QWidget#editorRibbon QPushButton:hover,
         QWidget#editorRibbon QToolButton:hover {
-            background-color: #273449;
-            border: 1px solid #4b5563;
+            background-color: #2e2e2e;
+            border: 1px solid rgba(255, 255, 255, 0.10);
         }
 
         QWidget#editorRibbon QPushButton:focus,
@@ -1370,14 +1370,14 @@ class EditorPage(QWidget):
 
         QWidget#editorRibbon QPushButton:disabled,
         QWidget#editorRibbon QToolButton:disabled {
-            color: #9ca3af;
-            background-color: #1f2937;
+            color: #a0a0a0;
+            background-color: #2a2a2a;
         }
 
         QPushButton[sheetButton="true"] {
-            background-color: #273449;
-            color: #cbd5e1;
-            border: 1px solid #374151;
+            background-color: #2a2a2a;
+            color: #a0a0a0;
+            border: 1px solid rgba(255, 255, 255, 0.06);
             border-radius: 6px;
             padding: 0 12px;
             font-weight: 400;
@@ -1391,92 +1391,92 @@ class EditorPage(QWidget):
         }
 
         QPushButton[sheetButton="true"]:hover {
-            background-color: #334155;
-            border: 1px solid #4b5563;
+            background-color: #2e2e2e;
+            border: 1px solid rgba(255, 255, 255, 0.10);
         }
 
         QWidget#sheetBar QPushButton {
-            background-color: #273449;
-            color: #cbd5e1;
-            border: 1px solid #374151;
+            background-color: #2a2a2a;
+            color: #a0a0a0;
+            border: 1px solid rgba(255, 255, 255, 0.06);
             border-radius: 6px;
         }
 
         QTableView {
-            background-color: #1f2937;
-            gridline-color: #374151;
-            color: #e5e7eb;
+            background-color: #252525;
+            gridline-color: rgba(255, 255, 255, 0.06);
+            color: #eaeaea;
             selection-background-color: transparent;
-            selection-color: #e5e7eb;
-            border: 1px solid #374151;
+            selection-color: #eaeaea;
+            border: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         QTableView::item:selected {
             background-color: transparent;
-            color: #e5e7eb;
+            color: #eaeaea;
         }
 
         QAbstractScrollArea::viewport {
-            background-color: #1f2937;
+            background-color: #252525;
         }
 
         QAbstractScrollArea::corner {
-            background: #111827;
+            background: #202124;
         }
 
         QHeaderView {
-            background-color: #111827;
+            background-color: #202124;
         }
 
         QHeaderView::section {
-            background-color: #1b2433;
-            color: #e5e7eb;
-            border: 1px solid #374151;
-            border-bottom: 1px solid #4b5563;
+            background-color: #2a2a2a;
+            color: #eaeaea;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.10);
             padding: 4px;
         }
 
         QTableCornerButton::section,
         QTableView QTableCornerButton::section {
-            background-color: #111827;
-            border: 1px solid #374151;
+            background-color: #202124;
+            border: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         QWidget#sheetBar {
-            background-color: #111827;
-            border-top: 1px solid #374151;
+            background-color: #202124;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         QWidget#zoomBoxHost {
-            background-color: #1b2433;
-            border-top: 1px solid #374151;
+            background-color: #2a2a2a;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         QPlainTextEdit#zoomBox {
-            background-color: #111827;
-            color: #e5e7eb;
-            border: 1px solid #374151;
+            background-color: #202124;
+            color: #eaeaea;
+            border: 1px solid rgba(255, 255, 255, 0.06);
             border-radius: 8px;
         }
 
         QScrollBar:vertical, QScrollBar:horizontal {
-            background: #111827;
+            background: #202124;
             height: 10px;
             width: 10px;
             margin: 0px;
         }
         QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
-            background: #374151;
+            background: #2e2e2e;
             min-height: 24px;
             min-width: 24px;
             border-radius: 4px;
         }
         QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {
-            background: #4b5563;
+            background: #3a3a3a;
         }
         QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical,
         QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
-            background: #111827;
+            background: #202124;
         }
         QScrollBar::add-line:vertical,
         QScrollBar::sub-line:vertical,
