@@ -305,7 +305,7 @@ class EditorPage(QWidget):
         self._dictate_idle_style = (
             "QToolButton {"
             "margin: 0px;"
-            "padding: 4px 10px 4px 30px;"
+            "padding: 4px 10px 4px 18px;"
             "}"
             "QToolButton::menu-button {"
             "width: 18px;"
@@ -317,7 +317,7 @@ class EditorPage(QWidget):
         self._dictate_recording_style = (
             "QToolButton {"
             "margin: 0px;"
-            "padding: 4px 10px 4px 30px;"
+            "padding: 4px 10px 4px 18px;"
             "background-color: #d9534f;"
             "color: white;"
             "border-radius: 6px;"
@@ -385,6 +385,14 @@ class EditorPage(QWidget):
         self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
         self.voice_controller.transcription_error.connect(self._on_dictate_error)
         self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
 
         self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
         self.voice_controller.recording_started.connect(self._on_dictate_started)
@@ -1024,8 +1032,12 @@ class EditorPage(QWidget):
             if reply != QMessageBox.Yes:
                 return
 
-        change_map = {(row, col): value for row, col, value in values}
-        self.model.set_cells_batch(change_map)
+        self.model.begin_compound_action()
+        try:
+            for row, col, value in values:
+                self.model.setData(self.model.index(row, col), value, Qt.EditRole)
+        finally:
+            self.model.end_compound_action()
 
         last_row, last_col = targets[-1]
         self._set_current_index(last_row, last_col)
@@ -1253,7 +1265,7 @@ class EditorPage(QWidget):
 
         if hasattr(self, "dictate_menu_spinner"):
             spinner_x = btn_top_left.x() + btn_rect.width() - self.dictate_menu_spinner.width() - 2
-            spinner_y = btn_top_left.y() + (btn_rect.height() - self.dictate_menu_spinner.height()) // 2
+            spinner_y = btn_top_left.y() + btn_rect.height() + 6
             self.dictate_menu_spinner.move(spinner_x, spinner_y)
 
     def _show_dictate_hint(self, message):
@@ -1529,6 +1541,14 @@ class EditorPage(QWidget):
             padding: 4px 12px;
         }
 
+        QWidget#editorRibbon QToolButton {
+            background-color: #2d2d30;
+            color: #e6e6e6;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            padding: 4px 12px;
+        }
+
         QWidget#editorRibbon QPushButton:hover {
             background-color: #3a3a3a;
         }
@@ -1546,6 +1566,11 @@ class EditorPage(QWidget):
         QWidget#editorRibbon QPushButton:disabled,
         QWidget#editorRibbon QToolButton:disabled {
             color: #a0a0a0;
+            background-color: #2a2a2a;
+        }
+
+        QWidget#editorRibbon QToolButton:disabled {
+            color: #9e9e9e;
             background-color: #2a2a2a;
         }
 
