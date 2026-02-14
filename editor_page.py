@@ -20,6 +20,7 @@ from PySide6.QtCore import (
     QEasingCurve,
     Signal,
     Qt,
+    QPoint,
 )
 from PySide6.QtGui import QColor, QFont, QPainter, QTextCursor
 from PySide6.QtWidgets import QStyle, QStyleOptionToolButton
@@ -248,16 +249,36 @@ class EditorPage(QWidget):
         self._dictate_pulse.setEasingCurve(QEasingCurve.InOutSine)
         self._dictate_pulse.setLoopCount(-1)
 
-        self._dictate_idle_style = ""
+        self._dictate_idle_style = (
+            "QToolButton {"
+            "margin: 0px;"
+            "padding: 4px 10px 4px 18px;"
+            "}"
+            "QToolButton::menu-button {"
+            "width: 18px;"
+            "subcontrol-origin: padding;"
+            "subcontrol-position: right center;"
+            "border-left: 1px solid rgba(120, 120, 120, 0.4);"
+            "}"
+        )
         self._dictate_recording_style = (
             "QToolButton {"
+            "margin: 0px;"
+            "padding: 4px 10px 4px 18px;"
             "background-color: #d9534f;"
             "color: white;"
             "border-radius: 6px;"
             "}"
+            "QToolButton::menu-button {"
+            "width: 18px;"
+            "subcontrol-origin: padding;"
+            "subcontrol-position: right center;"
+            "border-left: 1px solid rgba(255, 255, 255, 0.35);"
+            "}"
         )
+        self.dictate_btn.setStyleSheet(self._dictate_idle_style)
 
-        ribbon_layout.addWidget(self.dictate_btn)
+        ribbon_layout.addWidget(self.dictate_btn, 0, Qt.AlignVCenter)
 
         # 🔹 Export button (RIGHT)
         self.export_btn = QPushButton("Export to Excel")
@@ -296,6 +317,14 @@ class EditorPage(QWidget):
         self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
         self.voice_controller.transcription_error.connect(self._on_dictate_error)
         self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
 
         self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
         self.voice_controller.recording_started.connect(self._on_dictate_started)
@@ -1108,7 +1137,10 @@ class EditorPage(QWidget):
         self._show_dictate_hint(f"Transcription failed: {message}")
 
     def _show_dictate_hint(self, message):
-        pos = self.dictate_btn.mapToGlobal(self.dictate_btn.rect().bottomLeft())
+        rect = self.dictate_btn.rect()
+        pos = self.dictate_btn.mapToGlobal(
+            QPoint(rect.center().x(), rect.bottom() + 12)
+        )
         QToolTip.showText(pos, message, self.dictate_btn)
 
     def _on_dictate_level(self, level):
@@ -1351,15 +1383,20 @@ class EditorPage(QWidget):
             font-weight: 500;
         }
 
-        QWidget#editorRibbon QPushButton:hover,
-        QWidget#editorRibbon QToolButton:hover {
-            background-color: #2e2e2e;
-            border: 1px solid rgba(255, 255, 255, 0.10);
+        QWidget#editorRibbon QToolButton {
+            background-color: #2d2d30;
+            color: #e6e6e6;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            padding: 4px 12px;
         }
 
-        QWidget#editorRibbon QPushButton:focus,
-        QWidget#editorRibbon QToolButton:focus {
-            border: 1px solid #256d85;
+        QWidget#editorRibbon QPushButton:hover {
+            background-color: #3a3a3a;
+        }
+
+        QWidget#editorRibbon QToolButton:hover {
+            background-color: #3a3a3a;
         }
 
         QWidget#editorRibbon QPushButton:checked {
@@ -1374,6 +1411,14 @@ class EditorPage(QWidget):
             background-color: #2a2a2a;
         }
 
+        QWidget#editorRibbon QToolButton:disabled {
+            color: #9e9e9e;
+            background-color: #2a2a2a;
+        }
+
+        /* ===============================
+        SHEET BUTTONS (NOT QTabBar!)
+        =============================== */
         QPushButton[sheetButton="true"] {
             background-color: #2a2a2a;
             color: #a0a0a0;
