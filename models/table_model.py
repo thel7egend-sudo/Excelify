@@ -2,6 +2,7 @@ from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, Signal
 
 class TableModel(QAbstractTableModel):
     save_requested = Signal()
+    undo_state_changed = Signal(bool, bool)
     MAX_ROWS = 2000
     MAX_COLUMNS = 200
 
@@ -59,15 +60,19 @@ class TableModel(QAbstractTableModel):
             cells = self.document.active_sheet.cells
             before = cells.get((row, col), "")
 
-            if value == "":
+            if after == before:
+                return False
+
+            if after == "":
                 cells.pop((row, col), None)
             else:
-                cells[(row, col)] = value
+                cells[(row, col)] = after
 
             after = cells.get((row, col), "")
             self._push_change({(row, col): before}, {(row, col): after})
             self.dataChanged.emit(index, index)
             self.save_requested.emit()
+            self._push_change({(row, col): before}, {(row, col): after})
             return True
 
         return False
@@ -137,6 +142,8 @@ class TableModel(QAbstractTableModel):
         after = self._snapshot_positions(positions)
         self._push_change(before, after)
         self.layoutChanged.emit()
+        self.save_requested.emit()
+        self._record_action(self._diff_cells(before, after))
     def swap_columns(self, c1, c2):
         if c1 == c2:
             return
@@ -163,6 +170,8 @@ class TableModel(QAbstractTableModel):
         after = self._snapshot_positions(positions)
         self._push_change(before, after)
         self.layoutChanged.emit()
+        self.save_requested.emit()
+        self._record_action(self._diff_cells(before, after))
     def swap_block(self, r1, c1, r2, c2, dr1, dc1, dr2, dc2):
         cells = self.document.active_sheet.cells
 
