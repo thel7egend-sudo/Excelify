@@ -2,7 +2,7 @@ from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, Signal
 
 class TableModel(QAbstractTableModel):
     save_requested = Signal()
-    undo_state_changed = Signal(bool, bool)
+    history_changed = Signal(bool, bool)
     MAX_ROWS = 2000
     MAX_COLUMNS = 200
 
@@ -229,6 +229,7 @@ class TableModel(QAbstractTableModel):
         if self._macro_before or self._macro_after:
             self._undo_stack.append((self._macro_before, self._macro_after))
             self._redo_stack.clear()
+            self.history_changed.emit(self.can_undo(), self.can_redo())
         self._macro_before = {}
         self._macro_after = {}
 
@@ -238,6 +239,7 @@ class TableModel(QAbstractTableModel):
         before, after = self._undo_stack.pop()
         self._redo_stack.append((before, after))
         self._apply_change(before)
+        self.history_changed.emit(self.can_undo(), self.can_redo())
 
     def redo(self):
         if not self._redo_stack:
@@ -245,6 +247,13 @@ class TableModel(QAbstractTableModel):
         before, after = self._redo_stack.pop()
         self._undo_stack.append((before, after))
         self._apply_change(after)
+        self.history_changed.emit(self.can_undo(), self.can_redo())
+
+    def can_undo(self):
+        return bool(self._undo_stack)
+
+    def can_redo(self):
+        return bool(self._redo_stack)
 
     def _snapshot_positions(self, positions):
         cells = self.cells
@@ -269,6 +278,7 @@ class TableModel(QAbstractTableModel):
             return
         self._undo_stack.append((before, after))
         self._redo_stack.clear()
+        self.history_changed.emit(self.can_undo(), self.can_redo())
 
     def _apply_change(self, values):
         if not values:
