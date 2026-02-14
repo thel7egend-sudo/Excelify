@@ -1043,7 +1043,17 @@ class EditorPage(QWidget):
         if not targets:
             return
 
-        if self._targets_have_data(targets):
+        values = []
+        for i, (row, col) in enumerate(targets):
+            if i < len(segments) - 1 and i < len(targets) - 1:
+                s, e = segments[i]
+                value = text[s:e]
+            else:
+                s = segments[min(i, len(segments) - 1)][0]
+                value = text[s:]
+            values.append((row, col, value))
+
+        if self._targets_need_overwrite_confirmation(values, index):
             reply = QMessageBox.question(
                 self,
                 "Overwrite Cells?",
@@ -1054,12 +1064,8 @@ class EditorPage(QWidget):
             if reply != QMessageBox.Yes:
                 return
 
-        self.model.begin_compound_action()
-        try:
-            for row, col, value in values:
-                self.model.setData(self.model.index(row, col), value, Qt.EditRole)
-        finally:
-            self.model.end_compound_action()
+        change_map = {(row, col): value for row, col, value in values}
+        self.model.set_cells_batch(change_map)
 
         last_row, last_col = targets[-1]
         self._set_current_index(last_row, last_col)
@@ -1092,8 +1098,17 @@ class EditorPage(QWidget):
         return [(row + i, col) for i in range(count)]
 
     def _targets_need_overwrite_confirmation(self, values, source_index=None):
-        # Overwrite prompts are intentionally disabled for zoom-box segment commits.
-        # Keep this no-op helper for backward compatibility with any stale call sites.
+        source_row = source_index.row() if source_index and source_index.isValid() else None
+        source_col = source_index.column() if source_index and source_index.isValid() else None
+
+        for row, col, value in values:
+            if row == source_row and col == source_col:
+                continue
+
+            idx = self.model.index(row, col)
+            existing = self.model.data(idx, Qt.EditRole) or ""
+            if existing != "":
+                return True
         return False
 
     def _targets_have_data(self, targets):
