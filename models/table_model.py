@@ -99,6 +99,29 @@ class TableModel(QAbstractTableModel):
         self.save_requested.emit()
         return True
 
+    def set_cells_batch(self, changes):
+        if not changes:
+            return False
+
+        cells = self.document.active_sheet.cells
+        min_row = min(r for r, _ in changes.keys())
+        max_row = max(r for r, _ in changes.keys())
+        min_col = min(c for _, c in changes.keys())
+        max_col = max(c for _, c in changes.keys())
+
+        for (row, col), value in changes.items():
+            if value == "":
+                cells.pop((row, col), None)
+            else:
+                cells[(row, col)] = value
+
+        self.dataChanged.emit(
+            self.index(min_row, min_col),
+            self.index(max_row, max_col)
+        )
+        self.save_requested.emit()
+        return True
+
 
     
     def data(self, index, role=Qt.DisplayRole):

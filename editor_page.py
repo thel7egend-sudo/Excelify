@@ -1032,12 +1032,8 @@ class EditorPage(QWidget):
             if reply != QMessageBox.Yes:
                 return
 
-        self.model.begin_compound_action()
-        try:
-            for row, col, value in values:
-                self.model.setData(self.model.index(row, col), value, Qt.EditRole)
-        finally:
-            self.model.end_compound_action()
+        change_map = {(row, col): value for row, col, value in values}
+        self.model.set_cells_batch(change_map)
 
         last_row, last_col = targets[-1]
         self._set_current_index(last_row, last_col)
@@ -1072,6 +1068,16 @@ class EditorPage(QWidget):
     def _targets_need_overwrite_confirmation(self, values, source_index=None):
         # Overwrite prompts are intentionally disabled for zoom-box segment commits.
         # Keep this no-op helper for backward compatibility with any stale call sites.
+        return False
+
+    def _targets_have_data(self, targets):
+        # Backward-compatible helper for older call sites that still invoke
+        # _targets_have_data during segment commit checks.
+        for row, col in targets:
+            idx = self.model.index(row, col)
+            existing = self.model.data(idx, Qt.EditRole) or ""
+            if existing != "":
+                return True
         return False
 
     def _on_enter_toggle_changed(self, checked):
