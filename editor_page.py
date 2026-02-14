@@ -184,6 +184,7 @@ class EditorPage(QWidget):
         self.zoom_box = ZoomBoxEdit(self)
         self.zoom_box.setObjectName("zoomBox")
         self.zoom_box.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self._apply_zoom_box_font_size()
 
         self.zoom_box.textChanged.connect(self._on_zoom_text_changed)
         self.zoom_box.commit_requested.connect(self._commit_zoom_box)
@@ -232,6 +233,14 @@ class EditorPage(QWidget):
         sheet_layout.addStretch()
 
         layout.addWidget(sheet_bar)
+
+    def _apply_zoom_box_font_size(self):
+        font = self.zoom_box.font()
+        point_size = font.pointSizeF()
+        if point_size <= 0:
+            point_size = 10.0
+        font.setPointSizeF(point_size + 4.0)
+        self.zoom_box.setFont(font)
     def refresh_sheet_buttons(self):
         # remove old buttons
         for btn in self.sheet_buttons:
@@ -487,6 +496,7 @@ class EditorPage(QWidget):
         if not self.zoom_box_host.isVisible():
             return
         self._sync_zoom_box_to_index(self.view.currentIndex())
+        self.zoom_box.setFocus(Qt.MouseFocusReason)
 
     def _sync_zoom_box_to_index(self, index):
         if not self.zoom_box_host.isVisible():
@@ -619,7 +629,7 @@ class EditorPage(QWidget):
                 value = text[s:]
             values.append((row, col, value))
 
-        if self._targets_need_overwrite_confirmation(values):
+        if self._targets_need_overwrite_confirmation(values, index):
             reply = QMessageBox.question(
                 self,
                 "Overwrite Cells?",
@@ -630,8 +640,8 @@ class EditorPage(QWidget):
             if reply != QMessageBox.Yes:
                 return
 
-        for row, col, value in values:
-            self.model.setData(self.model.index(row, col), value, Qt.EditRole)
+        change_map = {(row, col): value for row, col, value in values}
+        self.model.set_cells_batch(change_map)
 
         last_row, last_col = targets[-1]
         self._set_current_index(last_row, last_col)
@@ -647,11 +657,27 @@ class EditorPage(QWidget):
         count = min(segment_count, max_rows)
         return [(row + i, col) for i in range(count)]
 
-    def _targets_need_overwrite_confirmation(self, values):
+    def _targets_need_overwrite_confirmation(self, values, source_index=None):
+        source_row = source_index.row() if source_index and source_index.isValid() else None
+        source_col = source_index.column() if source_index and source_index.isValid() else None
+
         for row, col, value in values:
+            if row == source_row and col == source_col:
+                continue
+
             idx = self.model.index(row, col)
             existing = self.model.data(idx, Qt.EditRole) or ""
             if existing != "" and existing != value:
+                return True
+        return False
+
+    def _targets_have_data(self, targets):
+        # Backward-compatible helper for older call sites that still invoke
+        # _targets_have_data during segment commit checks.
+        for row, col in targets:
+            idx = self.model.index(row, col)
+            existing = self.model.data(idx, Qt.EditRole) or ""
+            if existing != "":
                 return True
         return False
 
