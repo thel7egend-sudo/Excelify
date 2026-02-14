@@ -18,6 +18,7 @@ from PySide6.QtCore import (
     Property,
     QItemSelectionModel,
     QPropertyAnimation,
+    QThread,
     QEasingCurve,
     Signal,
     Qt,
@@ -109,6 +110,18 @@ class LoadingSpinner(QWidget):
             painter.rotate((360.0 / self._line_count) * ((i + self._angle) % self._line_count))
             painter.drawLine(0, -radius + line_length, 0, -radius + 1)
             painter.restore()
+
+
+class MicListWorker(QThread):
+    devices_ready = Signal(object)
+
+    def __init__(self, list_devices_callable, parent=None):
+        super().__init__(parent)
+        self._list_devices_callable = list_devices_callable
+
+    def run(self):
+        devices = self._list_devices_callable()
+        self.devices_ready.emit(devices)
 
 
 class ZoomBoxEdit(QPlainTextEdit):
@@ -294,6 +307,7 @@ class EditorPage(QWidget):
         self.dictate_menu.aboutToShow.connect(self._populate_mic_menu)
         self.dictate_btn.setMenu(self.dictate_menu)
         self._mic_actions = []
+        self._mic_worker = None
 
         self._dictate_pulse = QPropertyAnimation(self.dictate_btn, b"pulse_scale")
         self._dictate_pulse.setStartValue(1.0)
@@ -305,7 +319,7 @@ class EditorPage(QWidget):
         self._dictate_idle_style = (
             "QToolButton {"
             "margin: 0px;"
-            "padding: 4px 10px 4px 18px;"
+            "padding: 4px 10px 4px 12px;"
             "}"
             "QToolButton::menu-button {"
             "width: 18px;"
@@ -317,7 +331,7 @@ class EditorPage(QWidget):
         self._dictate_recording_style = (
             "QToolButton {"
             "margin: 0px;"
-            "padding: 4px 10px 4px 18px;"
+            "padding: 4px 10px 4px 12px;"
             "background-color: #d9534f;"
             "color: white;"
             "border-radius: 6px;"
@@ -385,6 +399,14 @@ class EditorPage(QWidget):
         self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
         self.voice_controller.transcription_error.connect(self._on_dictate_error)
         self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
 
         self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
         self.voice_controller.recording_started.connect(self._on_dictate_started)
@@ -1032,8 +1054,12 @@ class EditorPage(QWidget):
             if reply != QMessageBox.Yes:
                 return
 
-        change_map = {(row, col): value for row, col, value in values}
-        self.model.set_cells_batch(change_map)
+        self.model.begin_compound_action()
+        try:
+            for row, col, value in values:
+                self.model.setData(self.model.index(row, col), value, Qt.EditRole)
+        finally:
+            self.model.end_compound_action()
 
         last_row, last_col = targets[-1]
         self._set_current_index(last_row, last_col)
@@ -1161,8 +1187,20 @@ class EditorPage(QWidget):
             self.voice_controller.start_recording(target)
 
     def _populate_mic_menu(self):
+        if self._mic_worker is not None and self._mic_worker.isRunning():
+            return
+
         self._show_dictate_menu_loading(True)
-        QApplication.processEvents()
+        self.dictate_menu.clear()
+        loading_action = self.dictate_menu.addAction("Loading microphones...")
+        loading_action.setEnabled(False)
+
+        self._mic_worker = MicListWorker(self.voice_controller.list_devices, self)
+        self._mic_worker.devices_ready.connect(self._on_mic_devices_loaded)
+        self._mic_worker.finished.connect(self._on_mic_worker_finished)
+        self._mic_worker.start()
+
+    def _on_mic_devices_loaded(self, devices):
         self.dictate_menu.clear()
         self._mic_actions = []
 
@@ -1176,7 +1214,6 @@ class EditorPage(QWidget):
         )
         self._mic_actions.append(default_action)
 
-        devices = self.voice_controller.list_devices()
         if not devices:
             no_mics = self.dictate_menu.addAction("No mics connected")
             no_mics.setEnabled(False)
@@ -1199,6 +1236,11 @@ class EditorPage(QWidget):
                 action.setEnabled(False)
 
         self._show_dictate_menu_loading(False)
+
+    def _on_mic_worker_finished(self):
+        if self._mic_worker is not None:
+            self._mic_worker.deleteLater()
+            self._mic_worker = None
 
     def _select_microphone(self, device_id):
         self.voice_controller.set_selected_device(device_id)
@@ -1555,6 +1597,14 @@ class EditorPage(QWidget):
             padding: 4px 12px;
         }
 
+        QWidget#editorRibbon QToolButton {
+            background-color: #2d2d30;
+            color: #e6e6e6;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            padding: 4px 12px;
+        }
+
         QWidget#editorRibbon QPushButton:hover {
             background-color: #3a3a3a;
         }
@@ -1572,6 +1622,11 @@ class EditorPage(QWidget):
         QWidget#editorRibbon QPushButton:disabled,
         QWidget#editorRibbon QToolButton:disabled {
             color: #a0a0a0;
+            background-color: #2a2a2a;
+        }
+
+        QWidget#editorRibbon QToolButton:disabled {
+            color: #9e9e9e;
             background-color: #2a2a2a;
         }
 
