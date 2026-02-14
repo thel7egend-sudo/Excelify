@@ -1,17 +1,7 @@
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QToolButton, QMenu
 from PySide6.QtWidgets import (
-    QApplication,
-    QCheckBox,
-    QHBoxLayout,
-    QMenu,
-    QMessageBox,
-    QPlainTextEdit,
-    QPushButton,
-    QSizePolicy,
-    QToolButton,
-    QToolTip,
-    QVBoxLayout,
-    QWidget,
-    QTableView,
+    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QToolButton, QMenu,
+    QPlainTextEdit, QTableView, QApplication, QSizePolicy, QCheckBox, QMessageBox
 )
 from PySide6.QtCore import (
     Property,
@@ -270,84 +260,26 @@ class EditorPage(QWidget):
 
         ribbon_layout.addStretch()
 
-        self.undo_btn = QPushButton("↶ Undo")
-        self.undo_btn.setFixedHeight(36)
-        self.undo_btn.clicked.connect(self._undo_action)
-        self.redo_btn = QPushButton("↷ Redo")
-        self.redo_btn.setFixedHeight(36)
-        self.redo_btn.clicked.connect(self._redo_action)
+        self.view = TableView()
+        self.view.get_swap_mode = lambda: self.swap_mode
+        self.view.clear_swap_mode = self.clear_swap_mode
 
+        self.undo_btn = QPushButton("Undo: ↶")
+        self.redo_btn = QPushButton("Redo: ↷")
+        for btn in (self.undo_btn, self.redo_btn):
+            btn.setFixedHeight(32)
+        self.undo_btn.clicked.connect(self.model.undo)
+        self.redo_btn.clicked.connect(self.model.redo)
         ribbon_layout.addWidget(self.undo_btn)
         ribbon_layout.addWidget(self.redo_btn)
 
-        self.dictate_btn = DictateToolButton()
-        dictate_font = QFont("Segoe UI Emoji", self.dictate_btn.font().pointSize())
-        self.dictate_btn.setFont(dictate_font)
-        self.dictate_btn.setText("🎙️Dictate")
-        self.dictate_btn.setFixedHeight(36)
-        self.dictate_btn.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.dictate_btn = QToolButton()
+        self.dictate_btn.setText("Dictate")
         self.dictate_btn.setPopupMode(QToolButton.MenuButtonPopup)
-        self.dictate_btn.clicked.connect(self._toggle_dictate)
-
-        self.dictate_menu = QMenu(self.dictate_btn)
-        self.dictate_menu.aboutToShow.connect(self._populate_mic_menu)
-        self.dictate_btn.setMenu(self.dictate_menu)
-        self._mic_actions = []
-
-        self._dictate_pulse = QPropertyAnimation(self.dictate_btn, b"pulse_scale")
-        self._dictate_pulse.setStartValue(1.0)
-        self._dictate_pulse.setEndValue(1.12)
-        self._dictate_pulse.setDuration(700)
-        self._dictate_pulse.setEasingCurve(QEasingCurve.InOutSine)
-        self._dictate_pulse.setLoopCount(-1)
-
-        self._dictate_idle_style = (
-            "QToolButton {"
-            "margin: 0px;"
-            "padding: 4px 10px 4px 22px;"
-            "}"
-            "QToolButton::menu-button {"
-            "width: 18px;"
-            "subcontrol-origin: padding;"
-            "subcontrol-position: right center;"
-            "border-left: 1px solid rgba(120, 120, 120, 0.4);"
-            "}"
-        )
-        self._dictate_recording_style = (
-            "QToolButton {"
-            "margin: 0px;"
-            "padding: 4px 10px 4px 22px;"
-            "background-color: #d9534f;"
-            "color: white;"
-            "border-radius: 6px;"
-            "}"
-            "QToolButton::menu-button {"
-            "width: 18px;"
-            "subcontrol-origin: padding;"
-            "subcontrol-position: right center;"
-            "border-left: 1px solid rgba(255, 255, 255, 0.35);"
-            "}"
-        )
-        self.dictate_btn.setStyleSheet(self._dictate_idle_style)
-
-        ribbon_layout.addWidget(self.dictate_btn, 0, Qt.AlignVCenter)
-
-        self.dictate_transcribing_spinner = LoadingSpinner(self, diameter=14)
-        self.dictate_transcribing_spinner.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        self.dictate_transcribing_label = QWidget(self)
-        transcribe_status_layout = QHBoxLayout(self.dictate_transcribing_label)
-        transcribe_status_layout.setContentsMargins(0, 0, 0, 0)
-        transcribe_status_layout.setSpacing(6)
-        self.dictate_transcribing_text = QPushButton("Transcribing please wait.")
-        self.dictate_transcribing_text.setFlat(True)
-        self.dictate_transcribing_text.setFocusPolicy(Qt.NoFocus)
-        self.dictate_transcribing_text.setStyleSheet("QPushButton { border: none; padding: 0; margin: 0; }")
-        transcribe_status_layout.addWidget(self.dictate_transcribing_spinner)
-        transcribe_status_layout.addWidget(self.dictate_transcribing_text)
-        self.dictate_transcribing_label.hide()
-
-        self.dictate_menu_spinner = LoadingSpinner(self, diameter=14)
-        self.dictate_menu_spinner.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        dictate_menu = QMenu(self.dictate_btn)
+        self.dictate_btn.setMenu(dictate_menu)
+        self.dictate_btn.setFixedHeight(32)
+        ribbon_layout.addWidget(self.dictate_btn)
 
         # 🔹 Export button (RIGHT)
         self.export_btn = QPushButton("Export to Excel")
@@ -360,13 +292,6 @@ class EditorPage(QWidget):
         ribbon_layout.addWidget(self.export_btn)
 
         layout.addWidget(tool_ribbon)
-
-
-        self.model = TableModel(document)
-        if not hasattr(self, "view"):
-            self.view = TableView()
-        self.view.get_swap_mode = lambda: self.swap_mode
-        self.view.clear_swap_mode = self.clear_swap_mode
 
 
         self.view.setModel(self.model)
@@ -1006,7 +931,18 @@ class EditorPage(QWidget):
         if not targets:
             return
 
-        values = []
+        if self._targets_have_data(targets):
+            reply = QMessageBox.question(
+                self,
+                "Overwrite Cells?",
+                "Cells already contain data. Overwrite?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                return
+
+        self.model.begin_macro()
         for i, (row, col) in enumerate(targets):
             if i < len(segments) - 1 and i < len(targets) - 1:
                 s, e = segments[i]
@@ -1018,6 +954,7 @@ class EditorPage(QWidget):
 
         for row, col, value in values:
             self.model.setData(self.model.index(row, col), value, Qt.EditRole)
+        self.model.end_macro()
 
         last_row, last_col = targets[-1]
         self._set_current_index(last_row, last_col)
