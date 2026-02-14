@@ -350,50 +350,15 @@ class TableView(QTableView):
 
         self._begin_macro_if_supported()
         start_row, start_col, _, _ = rect
+        model = self.model()
+        if hasattr(model, "begin_compound_action"):
+            model.begin_compound_action()
         rows = text.splitlines() or [""]
         for r_offset, row_text in enumerate(rows):
             cols = row_text.split("\t")
             for c_offset, value in enumerate(cols):
-                index = self.model().index(start_row + r_offset, start_col + c_offset)
+                index = model.index(start_row + r_offset, start_col + c_offset)
                 if index.isValid():
-                    self.model().setData(index, value, Qt.EditRole)
-        self._end_macro_if_supported()
-
-    def _cut_selection_to_clipboard(self):
-        rect = self._selected_rect()
-        if rect is None:
-            return
-
-        self._copy_selection_to_clipboard()
-        r1, c1, r2, c2 = rect
-        self._begin_macro_if_supported()
-        for r in range(r1, r2 + 1):
-            for c in range(c1, c2 + 1):
-                index = self.model().index(r, c)
-                if index.isValid():
-                    self.model().setData(index, "", Qt.EditRole)
-        self._end_macro_if_supported()
-
-    def _delete_selection_contents(self):
-        rect = self._selected_rect()
-        if rect is None:
-            return
-
-        r1, c1, r2, c2 = rect
-        self._begin_macro_if_supported()
-        for r in range(r1, r2 + 1):
-            for c in range(c1, c2 + 1):
-                index = self.model().index(r, c)
-                if index.isValid():
-                    self.model().setData(index, "", Qt.EditRole)
-        self._end_macro_if_supported()
-
-    def _begin_macro_if_supported(self):
-        model = self.model()
-        if hasattr(model, "begin_macro"):
-            model.begin_macro()
-
-    def _end_macro_if_supported(self):
-        model = self.model()
-        if hasattr(model, "end_macro"):
-            model.end_macro()
+                    model.setData(index, value, Qt.EditRole)
+        if hasattr(model, "end_compound_action"):
+            model.end_compound_action()
