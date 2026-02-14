@@ -42,13 +42,13 @@ class TopChrome(QWidget):
         row2 = QWidget()
         row2.setObjectName("searchRow")
         row2_layout = QHBoxLayout(row2)
-        row2_layout.setContentsMargins(16, 6, 16, 6)
+        row2_layout.setContentsMargins(16, 10, 16, 10)
         row2_layout.setSpacing(0)
 
         self.search = QLineEdit()
         self.search.setObjectName("searchField")
         self.search.setPlaceholderText("Search documents")
-        self.search.setFixedWidth(360)
+        self.search.setFixedWidth(420)
         self.search_results = QListWidget()
         self.search_results.setObjectName("searchResults")
         self.search_results.setAutoFillBackground(True)
@@ -94,56 +94,63 @@ class TopChrome(QWidget):
         if not enabled:
             self.setStyleSheet("""
             QWidget#topChrome {
-                background-color: #f2f2f2;
-                border-bottom: 1px solid #d0d0d0;
+                background-color: #ffffff;
+                border-bottom: 1px solid #e5e7eb;
             }
 
             QWidget#topChrome > QWidget {
-                background-color: #f2f2f2;
+                background-color: #ffffff;
             }
 
             QWidget#searchRow {
-                background-color: #d6d6d6;
+                background-color: #ffffff;
             }
 
             QWidget#searchRow > QWidget {
-                background-color: #d6d6d6;
+                background-color: #ffffff;
             }
 
             QLabel#homeLabel {
-                background-color: #e7e7e7;
-                color: #222222;
+                background-color: #f9fafb;
+                color: #111827;
                 padding: 6px 14px;
-                border-radius: 10px;
+                border-radius: 8px;
+                font-size: 14px;
                 font-weight: 600;
+                border: 1px solid #e5e7eb;
             }
 
             QLabel#homeLabel:hover {
-                background-color: #dadada;
+                background-color: #f3f4f6;
+                border: 1px solid #d1d5db;
             }
 
             QLineEdit#searchField {
                 background-color: #ffffff;
-                color: #222222;
-                border: 1px solid #bdbdbd;
-                padding: 6px;
-                border-radius: 6px;
+                color: #111827;
+                border: 1px solid #c9ced6;
+                padding: 9px 12px;
+                border-radius: 9px;
                 margin: 0px;
             }
 
             QLineEdit#searchField:focus {
-                background-color: #ffffff;
-                border: 1px solid #9e9e9e;
+                border: 2px solid #256d85;
+                padding: 8px 11px;
+            }
+
+            QLineEdit#searchField::placeholder {
+                color: #6b7280;
             }
 
             QListWidget#searchResults {
-                background-color: #f2f2f2;
-                color: #222222;
-                border: 1px solid #d0d0d0;
+                background-color: #ffffff;
+                color: #111827;
+                border: 1px solid #e5e7eb;
             }
 
             QListWidget#searchResults::viewport {
-                background-color: #f2f2f2;
+                background-color: #ffffff;
             }
 
             QListWidget#searchResults::item {
@@ -152,63 +159,71 @@ class TopChrome(QWidget):
             }
 
             QListWidget#searchResults::item:selected {
-                background-color: #e0e0e0;
+                background-color: #e8f2f5;
+                color: #0f172a;
             }
             """)
             return
 
         self.setStyleSheet("""
         QWidget#topChrome {
-            background-color: #1e1e1e;
-            border-bottom: 1px solid #3a3a3a;
+            background-color: #202124;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         QWidget#topChrome > QWidget {
-            background-color: #1e1e1e;
+            background-color: #202124;
         }
 
         QWidget#searchRow {
-            background-color: #252526;
+            background-color: #202124;
         }
 
         QWidget#searchRow > QWidget {
-            background-color: #252526;
+            background-color: #202124;
         }
 
         QLabel#homeLabel {
-            background-color: #2d2d30;
-            color: #e6e6e6;
+            background-color: #252525;
+            color: #eaeaea;
             padding: 6px 14px;
-            border-radius: 10px;
+            border-radius: 8px;
+            font-size: 14px;
             font-weight: 600;
+            border: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         QLabel#homeLabel:hover {
-            background-color: #3a3a3a;
+            background-color: #2e2e2e;
+            border: 1px solid rgba(255, 255, 255, 0.10);
         }
 
         QLineEdit#searchField {
-            background-color: #1f2124;
-            color: #e6e6e6;
-            border: 1px solid #3a3a3a;
-            padding: 6px;
-            border-radius: 6px;
+            background-color: #252525;
+            color: #eaeaea;
+            border: 1px solid rgba(255, 255, 255, 0.10);
+            padding: 9px 12px;
+            border-radius: 9px;
             margin: 0px;
         }
 
         QLineEdit#searchField:focus {
-            background-color: #1f2124;
-            border: 1px solid #4a4f55;
+            border: 2px solid #256d85;
+            padding: 8px 11px;
+        }
+
+        QLineEdit#searchField::placeholder {
+            color: #a0a0a0;
         }
 
         QListWidget#searchResults {
-            background-color: #1f2124;
-            color: #e6e6e6;
-            border: 1px solid #2f3237;
+            background-color: #252525;
+            color: #eaeaea;
+            border: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         QListWidget#searchResults::viewport {
-            background-color: #1f2124;
+            background-color: #252525;
         }
 
         QListWidget#searchResults::item {
@@ -217,7 +232,7 @@ class TopChrome(QWidget):
         }
 
         QListWidget#searchResults::item:selected {
-            background-color: #2b2f35;
+            background-color: #256d85;
+            color: #ffffff;
         }
         """)
-    
