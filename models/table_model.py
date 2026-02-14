@@ -67,6 +67,8 @@ class TableModel(QAbstractTableModel):
             else:
                 cells[(row, col)] = after
 
+            after = cells.get((row, col), "")
+            self._push_change({(row, col): before}, {(row, col): after})
             self.dataChanged.emit(index, index)
             self.save_requested.emit()
             self._push_change({(row, col): before}, {(row, col): after})
@@ -91,6 +93,8 @@ class TableModel(QAbstractTableModel):
     def cells(self):
         return self.document.active_sheet.cells
     def swap_cells(self, r1, c1, r2, c2):
+        positions = [(r1, c1), (r2, c2)]
+        before = self._snapshot_positions(positions)
         cells = self.cells
         v1 = cells.get((r1, c1), "")
         v2 = cells.get((r2, c2), "")
