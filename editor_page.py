@@ -1016,23 +1016,8 @@ class EditorPage(QWidget):
                 value = text[s:]
             values.append((row, col, value))
 
-        if self._targets_need_overwrite_confirmation(values, index):
-            reply = QMessageBox.question(
-                self,
-                "Overwrite Cells?",
-                "Cells already contain data. Overwrite?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
-            )
-            if reply != QMessageBox.Yes:
-                return
-
-        self.model.begin_compound_action()
-        try:
-            for row, col, value in values:
-                self.model.setData(self.model.index(row, col), value, Qt.EditRole)
-        finally:
-            self.model.end_compound_action()
+        for row, col, value in values:
+            self.model.setData(self.model.index(row, col), value, Qt.EditRole)
 
         last_row, last_col = targets[-1]
         self._set_current_index(last_row, last_col)
@@ -1063,6 +1048,11 @@ class EditorPage(QWidget):
         max_rows = self.model.rowCount() - row
         count = min(segment_count, max_rows)
         return [(row + i, col) for i in range(count)]
+
+    def _targets_need_overwrite_confirmation(self, values, source_index=None):
+        # Overwrite prompts are intentionally disabled for zoom-box segment commits.
+        # Keep this no-op helper for backward compatibility with any stale call sites.
+        return False
 
     def _on_enter_toggle_changed(self, checked):
         self._enter_moves_right = checked
