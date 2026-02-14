@@ -427,6 +427,7 @@ class EditorPage(QWidget):
         self.zoom_box = ZoomBoxEdit(self)
         self.zoom_box.setObjectName("zoomBox")
         self.zoom_box.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self._apply_zoom_box_font_size()
 
         self.zoom_box.textChanged.connect(self._on_zoom_text_changed)
         self.zoom_box.commit_requested.connect(self._commit_zoom_box)
@@ -477,6 +478,14 @@ class EditorPage(QWidget):
         sheet_layout.addStretch()
 
         layout.addWidget(sheet_bar)
+
+    def _apply_zoom_box_font_size(self):
+        font = self.zoom_box.font()
+        point_size = font.pointSizeF()
+        if point_size <= 0:
+            point_size = 10.0
+        font.setPointSizeF(point_size + 4.0)
+        self.zoom_box.setFont(font)
     def refresh_sheet_buttons(self):
         # remove old buttons
         for btn in self.sheet_buttons:
@@ -930,23 +939,8 @@ class EditorPage(QWidget):
                 value = text[s:]
             values.append((row, col, value))
 
-        if self._targets_need_overwrite_confirmation(values, index):
-            reply = QMessageBox.question(
-                self,
-                "Overwrite Cells?",
-                "Cells already contain data. Overwrite?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
-            )
-            if reply != QMessageBox.Yes:
-                return
-
-        self.model.begin_compound_action()
-        try:
-            for row, col, value in values:
-                self.model.setData(self.model.index(row, col), value, Qt.EditRole)
-        finally:
-            self.model.end_compound_action()
+        for row, col, value in values:
+            self.model.setData(self.model.index(row, col), value, Qt.EditRole)
 
         last_row, last_col = targets[-1]
         self._set_current_index(last_row, last_col)
@@ -977,16 +971,6 @@ class EditorPage(QWidget):
         max_rows = self.model.rowCount() - row
         count = min(segment_count, max_rows)
         return [(row + i, col) for i in range(count)]
-
-    def _targets_need_overwrite_confirmation(self, values, source_index):
-        for row, col, value in values:
-            idx = self.model.index(row, col)
-            if idx == source_index:
-                continue
-            existing = self.model.data(idx, Qt.EditRole) or ""
-            if existing != "" and existing != value:
-                return True
-        return False
 
     def _on_enter_toggle_changed(self, checked):
         self._enter_moves_right = checked
