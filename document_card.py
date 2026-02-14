@@ -1,5 +1,6 @@
-from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout
+from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QGraphicsDropShadowEffect
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QMenu, QInputDialog
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QMenu, QInputDialog, QFrame, QLabel, QVBoxLayout
@@ -13,14 +14,20 @@ class DocumentCard(QFrame):
         super().__init__()
         self.document = document
 
-        self.setFixedSize(160, 120)
+        self.setFixedSize(176, 132)
 
         self.label = QLabel(document.name)
         self.label.setAlignment(Qt.AlignCenter)
         self.label.setWordWrap(True)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
         layout.addWidget(self.label)
+
+        self._shadow_normal = (0, 2, 6, 22)
+        self._shadow_hover = (0, 4, 10, 30)
+        self._set_shadow(*self._shadow_normal)
+
         self.apply_dark_mode(False)
 
     def update_name(self):
@@ -28,30 +35,55 @@ class DocumentCard(QFrame):
 
     def apply_dark_mode(self, enabled: bool):
         if not enabled:
+            self._shadow_normal = (0, 2, 6, 22)
+            self._shadow_hover = (0, 4, 10, 30)
+            self._set_shadow(*self._shadow_normal)
+
             self.setStyleSheet("""
                 QFrame {
-                    background: #f7f7f7;
-                    border-radius: 8px;
-                    border: 1px solid #bdbdbd;
+                    background: #ffffff;
+                    border-radius: 10px;
+                    border: 1px solid #e5e7eb;
                 }
                 QFrame:hover {
-                    border: 1px solid #8f8f8f;
+                    border: 1px solid #d1d5db;
+                    background: #ffffff;
                 }
             """)
-            self.label.setStyleSheet("")
+            self.label.setStyleSheet("color: #111827; font-size: 14px; font-weight: 500;")
             return
+
+        self._shadow_normal = (0, 2, 6, 80)
+        self._shadow_hover = (0, 4, 10, 110)
+        self._set_shadow(*self._shadow_normal)
 
         self.setStyleSheet("""
             QFrame {
-                background: #1f1f1f;
-                border-radius: 8px;
-                border: 1px solid #3a3a3a;
+                background: #252525;
+                border-radius: 10px;
+                border: 1px solid rgba(255, 255, 255, 0.06);
             }
             QFrame:hover {
-                border: 1px solid #5a5a5a;
+                border: 1px solid rgba(255, 255, 255, 0.10);
+                background: #2e2e2e;
             }
         """)
-        self.label.setStyleSheet("color: #e6e6e6;")
+        self.label.setStyleSheet("color: #eaeaea; font-size: 14px; font-weight: 500;")
+
+    def _set_shadow(self, x_offset: int, y_offset: int, blur: int, alpha: int):
+        effect = QGraphicsDropShadowEffect(self)
+        effect.setOffset(x_offset, y_offset)
+        effect.setBlurRadius(blur)
+        effect.setColor(QColor(0, 0, 0, alpha))
+        self.setGraphicsEffect(effect)
+
+    def enterEvent(self, event):
+        self._set_shadow(*self._shadow_hover)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self._set_shadow(*self._shadow_normal)
+        super().leaveEvent(event)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
