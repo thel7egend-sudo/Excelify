@@ -21,8 +21,9 @@ from PySide6.QtCore import (
     Signal,
     Qt,
     QPoint,
+    QTimer,
 )
-from PySide6.QtGui import QColor, QFont, QPainter, QTextCursor
+from PySide6.QtGui import QColor, QFont, QPainter, QTextCursor, QPen
 from PySide6.QtWidgets import QStyle, QStyleOptionToolButton
 
 from models.table_model import TableModel
@@ -56,6 +57,57 @@ class DictateToolButton(QToolButton):
         option = QStyleOptionToolButton()
         self.initStyleOption(option)
         self.style().drawComplexControl(QStyle.CC_ToolButton, option, painter, self)
+
+
+
+
+class LoadingSpinner(QWidget):
+    def __init__(self, parent=None, diameter=14, line_count=12):
+        super().__init__(parent)
+        self._angle = 0
+        self._line_count = line_count
+        self._diameter = diameter
+        self.setFixedSize(diameter, diameter)
+        self._timer = QTimer(self)
+        self._timer.setInterval(70)
+        self._timer.timeout.connect(self._tick)
+        self.hide()
+
+    def start(self):
+        self.show()
+        if not self._timer.isActive():
+            self._timer.start()
+
+    def stop(self):
+        self._timer.stop()
+        self.hide()
+
+    def _tick(self):
+        self._angle = (self._angle + 1) % self._line_count
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        center = self.rect().center()
+        radius = min(self.width(), self.height()) / 2.0 - 1
+        line_length = radius * 0.45
+        line_width = max(2.0, radius * 0.16)
+
+        for i in range(self._line_count):
+            alpha = int(255 * ((i + 1) / self._line_count))
+            color = QColor(0, 0, 0, alpha)
+            pen = QPen(color)
+            pen.setWidthF(line_width)
+            pen.setCapStyle(Qt.RoundCap)
+            painter.setPen(pen)
+
+            painter.save()
+            painter.translate(center)
+            painter.rotate((360.0 / self._line_count) * ((i + self._angle) % self._line_count))
+            painter.drawLine(0, -radius + line_length, 0, -radius + 1)
+            painter.restore()
 
 
 class ZoomBoxEdit(QPlainTextEdit):
@@ -252,7 +304,7 @@ class EditorPage(QWidget):
         self._dictate_idle_style = (
             "QToolButton {"
             "margin: 0px;"
-            "padding: 4px 10px 4px 18px;"
+            "padding: 4px 10px 4px 22px;"
             "}"
             "QToolButton::menu-button {"
             "width: 18px;"
@@ -264,7 +316,7 @@ class EditorPage(QWidget):
         self._dictate_recording_style = (
             "QToolButton {"
             "margin: 0px;"
-            "padding: 4px 10px 4px 18px;"
+            "padding: 4px 10px 4px 22px;"
             "background-color: #d9534f;"
             "color: white;"
             "border-radius: 6px;"
@@ -279,6 +331,23 @@ class EditorPage(QWidget):
         self.dictate_btn.setStyleSheet(self._dictate_idle_style)
 
         ribbon_layout.addWidget(self.dictate_btn, 0, Qt.AlignVCenter)
+
+        self.dictate_transcribing_spinner = LoadingSpinner(self, diameter=14)
+        self.dictate_transcribing_spinner.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.dictate_transcribing_label = QWidget(self)
+        transcribe_status_layout = QHBoxLayout(self.dictate_transcribing_label)
+        transcribe_status_layout.setContentsMargins(0, 0, 0, 0)
+        transcribe_status_layout.setSpacing(6)
+        self.dictate_transcribing_text = QPushButton("Transcribing please wait.")
+        self.dictate_transcribing_text.setFlat(True)
+        self.dictate_transcribing_text.setFocusPolicy(Qt.NoFocus)
+        self.dictate_transcribing_text.setStyleSheet("QPushButton { border: none; padding: 0; margin: 0; }")
+        transcribe_status_layout.addWidget(self.dictate_transcribing_spinner)
+        transcribe_status_layout.addWidget(self.dictate_transcribing_text)
+        self.dictate_transcribing_label.hide()
+
+        self.dictate_menu_spinner = LoadingSpinner(self, diameter=14)
+        self.dictate_menu_spinner.setAttribute(Qt.WA_TransparentForMouseEvents, True)
 
         # 🔹 Export button (RIGHT)
         self.export_btn = QPushButton("Export to Excel")
@@ -317,6 +386,14 @@ class EditorPage(QWidget):
         self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
         self.voice_controller.transcription_error.connect(self._on_dictate_error)
         self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
 
         self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
         self.voice_controller.recording_started.connect(self._on_dictate_started)
@@ -939,8 +1016,23 @@ class EditorPage(QWidget):
                 value = text[s:]
             values.append((row, col, value))
 
-        for row, col, value in values:
-            self.model.setData(self.model.index(row, col), value, Qt.EditRole)
+        if self._targets_need_overwrite_confirmation(values, index):
+            reply = QMessageBox.question(
+                self,
+                "Overwrite Cells?",
+                "Cells already contain data. Overwrite?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                return
+
+        self.model.begin_compound_action()
+        try:
+            for row, col, value in values:
+                self.model.setData(self.model.index(row, col), value, Qt.EditRole)
+        finally:
+            self.model.end_compound_action()
 
         last_row, last_col = targets[-1]
         self._set_current_index(last_row, last_col)
@@ -1046,11 +1138,15 @@ class EditorPage(QWidget):
         target = TranscriptionTarget(index.row(), index.column())
 
         if self.voice_controller.is_recording:
+            self._show_transcribing_status(True)
             self.voice_controller.stop_recording(target)
         else:
+            self._show_transcribing_status(False)
             self.voice_controller.start_recording(target)
 
     def _populate_mic_menu(self):
+        self._show_dictate_menu_loading(True)
+        QApplication.processEvents()
         self.dictate_menu.clear()
         self._mic_actions = []
 
@@ -1086,6 +1182,8 @@ class EditorPage(QWidget):
             for action in self.dictate_menu.actions():
                 action.setEnabled(False)
 
+        self._show_dictate_menu_loading(False)
+
     def _select_microphone(self, device_id):
         self.voice_controller.set_selected_device(device_id)
 
@@ -1115,10 +1213,47 @@ class EditorPage(QWidget):
         self._dictate_peak_level = 0.0
 
     def _on_dictate_transcription_ready(self, text, target):
+        self._show_transcribing_status(False)
         self._append_text_to_cell(text, target)
 
     def _on_dictate_error(self, message):
+        self._show_transcribing_status(False)
         self._show_dictate_hint(f"Transcription failed: {message}")
+
+    def _show_transcribing_status(self, visible):
+        if visible:
+            self.dictate_transcribing_spinner.start()
+            self.dictate_transcribing_label.show()
+        else:
+            self.dictate_transcribing_spinner.stop()
+            self.dictate_transcribing_label.hide()
+        self._position_dictate_status_widgets()
+
+    def _show_dictate_menu_loading(self, visible):
+        if visible:
+            self.dictate_menu_spinner.start()
+        else:
+            self.dictate_menu_spinner.stop()
+        self._position_dictate_status_widgets()
+
+    def _position_dictate_status_widgets(self):
+        if not hasattr(self, "dictate_btn"):
+            return
+
+        btn_top_left = self.dictate_btn.mapTo(self, QPoint(0, 0))
+        btn_rect = self.dictate_btn.geometry()
+        gap_y = btn_top_left.y() + btn_rect.height() + 6
+
+        if hasattr(self, "dictate_transcribing_label"):
+            self.dictate_transcribing_label.adjustSize()
+            trans_w = self.dictate_transcribing_label.width()
+            x = btn_top_left.x() + max(0, (btn_rect.width() - trans_w) // 2)
+            self.dictate_transcribing_label.move(x, gap_y)
+
+        if hasattr(self, "dictate_menu_spinner"):
+            spinner_x = btn_top_left.x() + btn_rect.width() - self.dictate_menu_spinner.width() - 2
+            spinner_y = btn_top_left.y() + (btn_rect.height() - self.dictate_menu_spinner.height()) // 2
+            self.dictate_menu_spinner.move(spinner_x, spinner_y)
 
     def _show_dictate_hint(self, message):
         rect = self.dictate_btn.rect()
@@ -1178,11 +1313,13 @@ class EditorPage(QWidget):
         super().showEvent(event)
         if self.zoom_box_btn.isChecked():
             self._show_zoom_box()
+        self._position_dictate_status_widgets()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if self.zoom_box_host.isVisible():
             self._update_zoom_box_size_from_ratio()
+        self._position_dictate_status_widgets()
 
     def hideEvent(self, event):
         if self.zoom_box_host.isVisible():
@@ -1375,6 +1512,14 @@ class EditorPage(QWidget):
             padding: 4px 12px;
         }
 
+        QWidget#editorRibbon QToolButton {
+            background-color: #2d2d30;
+            color: #e6e6e6;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            padding: 4px 12px;
+        }
+
         QWidget#editorRibbon QPushButton:hover {
             background-color: #3a3a3a;
         }
@@ -1392,6 +1537,11 @@ class EditorPage(QWidget):
         QWidget#editorRibbon QPushButton:disabled,
         QWidget#editorRibbon QToolButton:disabled {
             color: #a0a0a0;
+            background-color: #2a2a2a;
+        }
+
+        QWidget#editorRibbon QToolButton:disabled {
+            color: #9e9e9e;
             background-color: #2a2a2a;
         }
 
