@@ -1024,12 +1024,8 @@ class EditorPage(QWidget):
             if reply != QMessageBox.Yes:
                 return
 
-        self.model.begin_compound_action()
-        try:
-            for row, col, value in values:
-                self.model.setData(self.model.index(row, col), value, Qt.EditRole)
-        finally:
-            self.model.end_compound_action()
+        change_map = {(row, col): value for row, col, value in values}
+        self.model.set_cells_batch(change_map)
 
         last_row, last_col = targets[-1]
         self._set_current_index(last_row, last_col)
