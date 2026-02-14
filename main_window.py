@@ -254,52 +254,52 @@ class MainWindow(QMainWindow):
 
         dark_qss = """
         QToolTip {
-            color: #e6e6e6;
+            color: #eaeaea;
             background-color: #2b2b2b;
-            border: 1px solid #3a3a3a;
+            border: 1px solid rgba(255,255,255,0.10);
         }
 
         QMenu {
-            background-color: #202226;
-            color: #e6e6e6;
-            border: 1px solid #2f3237;
+            background-color: #202124;
+            color: #eaeaea;
+            border: 1px solid rgba(255,255,255,0.06);
         }
         QMenu::item {
             padding: 6px 24px;
         }
         QMenu::item:selected {
-            background-color: #2f343a;
+            background-color: #2e2e2e;
         }
 
         QMessageBox, QInputDialog, QFileDialog {
-            background-color: #1f2124;
-            color: #e6e6e6;
+            background-color: #202124;
+            color: #eaeaea;
         }
 
         QLabel {
-            color: #e6e6e6;
+            color: #eaeaea;
         }
 
         QLineEdit, QPlainTextEdit, QTextEdit {
-            background-color: #26282c;
-            color: #e6e6e6;
-            border: 1px solid #3a3d42;
+            background-color: #252525;
+            color: #eaeaea;
+            border: 1px solid rgba(255,255,255,0.06);
             border-radius: 4px;
             padding: 4px;
         }
 
         QPushButton {
-            background-color: #2a2d31;
-            color: #e6e6e6;
-            border: 1px solid #3a3d42;
+            background-color: #2a2a2a;
+            color: #eaeaea;
+            border: 1px solid rgba(255,255,255,0.06);
             border-radius: 6px;
             padding: 6px 10px;
         }
         QPushButton:hover {
-            background-color: #343841;
+            background-color: #2e2e2e;
         }
         QPushButton:pressed {
-            background-color: #25292f;
+            background-color: #252525;
         }
         """
 

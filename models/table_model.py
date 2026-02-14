@@ -67,12 +67,60 @@ class TableModel(QAbstractTableModel):
             else:
                 cells[(row, col)] = after
 
+            after = cells.get((row, col), "")
+            self._push_change({(row, col): before}, {(row, col): after})
             self.dataChanged.emit(index, index)
             self.save_requested.emit()
             self._push_change({(row, col): before}, {(row, col): after})
             return True
 
         return False
+
+    def set_cells_batch(self, changes):
+        if not changes:
+            return False
+
+        cells = self.document.active_sheet.cells
+        min_row = min(r for r, _ in changes.keys())
+        max_row = max(r for r, _ in changes.keys())
+        min_col = min(c for _, c in changes.keys())
+        max_col = max(c for _, c in changes.keys())
+
+        for (row, col), value in changes.items():
+            if value == "":
+                cells.pop((row, col), None)
+            else:
+                cells[(row, col)] = value
+
+        self.dataChanged.emit(
+            self.index(min_row, min_col),
+            self.index(max_row, max_col)
+        )
+        self.save_requested.emit()
+        return True
+
+    def set_cells_batch(self, changes):
+        if not changes:
+            return False
+
+        cells = self.document.active_sheet.cells
+        min_row = min(r for r, _ in changes.keys())
+        max_row = max(r for r, _ in changes.keys())
+        min_col = min(c for _, c in changes.keys())
+        max_col = max(c for _, c in changes.keys())
+
+        for (row, col), value in changes.items():
+            if value == "":
+                cells.pop((row, col), None)
+            else:
+                cells[(row, col)] = value
+
+        self.dataChanged.emit(
+            self.index(min_row, min_col),
+            self.index(max_row, max_col)
+        )
+        self.save_requested.emit()
+        return True
 
 
     
@@ -91,6 +139,8 @@ class TableModel(QAbstractTableModel):
     def cells(self):
         return self.document.active_sheet.cells
     def swap_cells(self, r1, c1, r2, c2):
+        positions = [(r1, c1), (r2, c2)]
+        before = self._snapshot_positions(positions)
         cells = self.cells
         v1 = cells.get((r1, c1), "")
         v2 = cells.get((r2, c2), "")
