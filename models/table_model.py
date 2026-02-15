@@ -60,6 +60,7 @@ class TableModel(QAbstractTableModel):
 
             cells = self.document.active_sheet.cells
             before = cells.get((row, col), "")
+            after = "" if value is None else str(value)
 
             if after == before:
                 return False
@@ -73,7 +74,6 @@ class TableModel(QAbstractTableModel):
             self._push_change({(row, col): before}, {(row, col): after})
             self.dataChanged.emit(index, index)
             self.save_requested.emit()
-            self._push_change({(row, col): before}, {(row, col): after})
             return True
 
         return False
@@ -159,6 +159,40 @@ class TableModel(QAbstractTableModel):
                 ""
             )
         return None
+
+
+    def clear_cells(self, positions):
+        unique_positions = list(dict.fromkeys(positions))
+        if not unique_positions:
+            return False
+
+        cells = self.document.active_sheet.cells
+        before = {}
+        after = {}
+        rows = []
+        cols = []
+
+        for row, col in unique_positions:
+            previous = cells.get((row, col), "")
+            if previous == "":
+                continue
+
+            before[(row, col)] = previous
+            after[(row, col)] = ""
+            cells.pop((row, col), None)
+            rows.append(row)
+            cols.append(col)
+
+        if not before:
+            return False
+
+        self._push_change(before, after)
+        self.dataChanged.emit(
+            self.index(min(rows), min(cols)),
+            self.index(max(rows), max(cols))
+        )
+        self.save_requested.emit()
+        return True
 
     @property
     def cells(self):
