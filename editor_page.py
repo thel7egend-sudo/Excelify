@@ -1,7 +1,18 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QToolButton, QMenu
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QToolButton, QMenu,
-    QPlainTextEdit, QTableView, QApplication, QSizePolicy, QCheckBox, QMessageBox
+    QApplication,
+    QCheckBox,
+    QHBoxLayout,
+    QLabel,
+    QMenu,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QSizePolicy,
+    QToolButton,
+    QToolTip,
+    QVBoxLayout,
+    QWidget,
+    QTableView,
 )
 from PySide6.QtCore import (
     Property,
@@ -273,26 +284,83 @@ class EditorPage(QWidget):
 
         ribbon_layout.addStretch()
 
-        self.view = TableView()
-        self.view.get_swap_mode = lambda: self.swap_mode
-        self.view.clear_swap_mode = self.clear_swap_mode
+        self.undo_btn = QPushButton("↶ Undo")
+        self.undo_btn.setFixedHeight(36)
+        self.undo_btn.clicked.connect(self._undo_action)
+        self.redo_btn = QPushButton("↷ Redo")
+        self.redo_btn.setFixedHeight(36)
+        self.redo_btn.clicked.connect(self._redo_action)
 
-        self.undo_btn = QPushButton("Undo: ↶")
-        self.redo_btn = QPushButton("Redo: ↷")
-        for btn in (self.undo_btn, self.redo_btn):
-            btn.setFixedHeight(32)
-        self.undo_btn.clicked.connect(self.model.undo)
-        self.redo_btn.clicked.connect(self.model.redo)
         ribbon_layout.addWidget(self.undo_btn)
         ribbon_layout.addWidget(self.redo_btn)
 
-        self.dictate_btn = QToolButton()
-        self.dictate_btn.setText("Dictate")
+        self.dictate_btn = DictateToolButton()
+        dictate_font = QFont("Segoe UI Emoji", self.dictate_btn.font().pointSize())
+        self.dictate_btn.setFont(dictate_font)
+        self.dictate_btn.setText("🎙️Dictate")
+        self.dictate_btn.setFixedHeight(36)
+        self.dictate_btn.setToolButtonStyle(Qt.ToolButtonTextOnly)
         self.dictate_btn.setPopupMode(QToolButton.MenuButtonPopup)
-        dictate_menu = QMenu(self.dictate_btn)
-        self.dictate_btn.setMenu(dictate_menu)
-        self.dictate_btn.setFixedHeight(32)
-        ribbon_layout.addWidget(self.dictate_btn)
+        self.dictate_btn.clicked.connect(self._toggle_dictate)
+
+        self.dictate_menu = QMenu(self.dictate_btn)
+        self.dictate_menu.aboutToShow.connect(self._populate_mic_menu)
+        self.dictate_btn.setMenu(self.dictate_menu)
+        self._mic_actions = []
+        self._mic_worker = None
+
+        self._dictate_pulse = QPropertyAnimation(self.dictate_btn, b"pulse_scale")
+        self._dictate_pulse.setStartValue(1.0)
+        self._dictate_pulse.setEndValue(1.12)
+        self._dictate_pulse.setDuration(700)
+        self._dictate_pulse.setEasingCurve(QEasingCurve.InOutSine)
+        self._dictate_pulse.setLoopCount(-1)
+
+        self._dictate_idle_style = (
+            "QToolButton {"
+            "margin: 0px;"
+            "padding: 4px 10px 4px 20px;"
+            "}"
+            "QToolButton::menu-button {"
+            "width: 18px;"
+            "subcontrol-origin: padding;"
+            "subcontrol-position: right center;"
+            "border-left: 1px solid rgba(120, 120, 120, 0.4);"
+            "}"
+        )
+        self._dictate_recording_style = (
+            "QToolButton {"
+            "margin: 0px;"
+            "padding: 4px 10px 4px 20px;"
+            "background-color: #d9534f;"
+            "color: white;"
+            "border-radius: 6px;"
+            "}"
+            "QToolButton::menu-button {"
+            "width: 18px;"
+            "subcontrol-origin: padding;"
+            "subcontrol-position: right center;"
+            "border-left: 1px solid rgba(255, 255, 255, 0.35);"
+            "}"
+        )
+        self.dictate_btn.setStyleSheet(self._dictate_idle_style)
+
+        ribbon_layout.addWidget(self.dictate_btn, 0, Qt.AlignVCenter)
+
+        self.dictate_transcribing_spinner = LoadingSpinner(self, diameter=14)
+        self.dictate_transcribing_spinner.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self.dictate_transcribing_label = QWidget(self)
+        transcribe_status_layout = QHBoxLayout(self.dictate_transcribing_label)
+        transcribe_status_layout.setContentsMargins(0, 0, 0, 0)
+        transcribe_status_layout.setSpacing(6)
+        self.dictate_transcribing_text = QLabel("Transcribing please wait.")
+        self.dictate_transcribing_text.setStyleSheet("QLabel { background: transparent; }")
+        transcribe_status_layout.addWidget(self.dictate_transcribing_spinner)
+        transcribe_status_layout.addWidget(self.dictate_transcribing_text)
+        self.dictate_transcribing_label.hide()
+
+        self.dictate_menu_spinner = LoadingSpinner(self, diameter=14)
+        self.dictate_menu_spinner.setAttribute(Qt.WA_TransparentForMouseEvents, True)
 
         # 🔹 Export button (RIGHT)
         self.export_btn = QPushButton("Export to Excel")
@@ -305,6 +373,13 @@ class EditorPage(QWidget):
         ribbon_layout.addWidget(self.export_btn)
 
         layout.addWidget(tool_ribbon)
+
+
+        self.model = TableModel(document)
+        if not hasattr(self, "view"):
+            self.view = TableView()
+        self.view.get_swap_mode = lambda: self.swap_mode
+        self.view.clear_swap_mode = self.clear_swap_mode
 
 
         self.view.setModel(self.model)
@@ -324,6 +399,14 @@ class EditorPage(QWidget):
         self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
         self.voice_controller.transcription_error.connect(self._on_dictate_error)
         self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
 
         self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
         self.voice_controller.recording_started.connect(self._on_dictate_started)
@@ -997,16 +1080,12 @@ class EditorPage(QWidget):
             if reply != QMessageBox.Yes:
                 return
 
-        self.model.begin_macro()
-        for i, (row, col) in enumerate(targets):
-            if i < len(segments) - 1 and i < len(targets) - 1:
-                s, e = segments[i]
-                value = text[s:e]
-            else:
-                s = segments[min(i, len(segments) - 1)][0]
-                value = text[s:]
-            self.model.setData(self.model.index(row, col), value, Qt.EditRole)
-        self.model.end_macro()
+        self.model.begin_compound_action()
+        try:
+            for row, col, value in values:
+                self.model.setData(self.model.index(row, col), value, Qt.EditRole)
+        finally:
+            self.model.end_compound_action()
 
         last_row, last_col = targets[-1]
         self._set_current_index(last_row, last_col)
@@ -1582,6 +1661,14 @@ class EditorPage(QWidget):
             padding: 4px 12px;
         }
 
+        QWidget#editorRibbon QToolButton {
+            background-color: #2d2d30;
+            color: #e6e6e6;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            padding: 4px 12px;
+        }
+
         QWidget#editorRibbon QPushButton:hover {
             background-color: #3a3a3a;
         }
@@ -1599,6 +1686,11 @@ class EditorPage(QWidget):
         QWidget#editorRibbon QPushButton:disabled,
         QWidget#editorRibbon QToolButton:disabled {
             color: #a0a0a0;
+            background-color: #2a2a2a;
+        }
+
+        QWidget#editorRibbon QToolButton:disabled {
+            color: #9e9e9e;
             background-color: #2a2a2a;
         }
 

@@ -364,6 +364,9 @@ class TableView(QTableView):
         if callable(begin_macro):
             begin_macro()
         start_row, start_col, _, _ = rect
+        model = self.model()
+        if hasattr(model, "begin_compound_action"):
+            model.begin_compound_action()
         rows = text.splitlines() or [""]
         for r_offset, row_text in enumerate(rows):
             cols = row_text.split("\t")
@@ -371,59 +374,5 @@ class TableView(QTableView):
                 index = model.index(start_row + r_offset, start_col + c_offset)
                 if index.isValid():
                     model.setData(index, value, Qt.EditRole)
-        if callable(end_macro):
-            end_macro()
-
-    def _cut_selection_to_clipboard(self):
-        rect = self._selected_rect()
-        if rect is None:
-            return
-
-        self._copy_selection_to_clipboard()
-        r1, c1, r2, c2 = rect
-        model = self.model()
-        begin_macro = getattr(model, "begin_macro", None)
-        end_macro = getattr(model, "end_macro", None)
-        if callable(begin_macro):
-            begin_macro()
-        for r in range(r1, r2 + 1):
-            for c in range(c1, c2 + 1):
-                index = model.index(r, c)
-                if index.isValid():
-                    model.setData(index, "", Qt.EditRole)
-        if callable(end_macro):
-            end_macro()
-
-    def _delete_selection_contents(self):
-        rect = self._selected_rect()
-        if rect is None:
-            return
-
-        r1, c1, r2, c2 = rect
-        model = self.model()
-        begin_macro = getattr(model, "begin_macro", None)
-        end_macro = getattr(model, "end_macro", None)
-        if callable(begin_macro):
-            begin_macro()
-        for r in range(r1, r2 + 1):
-            for c in range(c1, c2 + 1):
-                index = model.index(r, c)
-                if index.isValid():
-                    model.setData(index, "", Qt.EditRole)
-        if callable(end_macro):
-            end_macro()
-
-    def _run_paste_action(self):
-        handler = getattr(self, "_paste_clipboard_to_selection", None)
-        if callable(handler):
-            handler()
-
-    def _run_cut_action(self):
-        handler = getattr(self, "_cut_selection_to_clipboard", None)
-        if callable(handler):
-            handler()
-
-    def _run_delete_action(self):
-        handler = getattr(self, "_delete_selection_contents", None)
-        if callable(handler):
-            handler()
+        if hasattr(model, "end_compound_action"):
+            model.end_compound_action()
