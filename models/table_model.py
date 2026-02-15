@@ -17,8 +17,53 @@ class TableModel(QAbstractTableModel):
         self._compound_changes = None
         self._suspend_undo = False
 
+        self._history_by_sheet = {}
+        self._history_sheet_key = None
+        self._ensure_history_for_active_sheet()
 
 
+
+
+    def _active_sheet_history_key(self):
+        return id(self.document.active_sheet)
+
+    def _save_history_state(self, key):
+        self._history_by_sheet[key] = {
+            "undo_stack": self._undo_stack,
+            "redo_stack": self._redo_stack,
+            "macro_depth": self._macro_depth,
+            "macro_before": self._macro_before,
+            "macro_after": self._macro_after,
+            "suspend_history": self._suspend_history,
+        }
+
+    def _ensure_history_for_active_sheet(self):
+        key = self._active_sheet_history_key()
+        if self._history_sheet_key == key:
+            return
+
+        if self._history_sheet_key is not None:
+            self._save_history_state(self._history_sheet_key)
+
+        state = self._history_by_sheet.get(key)
+        if state is None:
+            state = {
+                "undo_stack": [],
+                "redo_stack": [],
+                "macro_depth": 0,
+                "macro_before": {},
+                "macro_after": {},
+                "suspend_history": False,
+            }
+            self._history_by_sheet[key] = state
+
+        self._undo_stack = state["undo_stack"]
+        self._redo_stack = state["redo_stack"]
+        self._macro_depth = state["macro_depth"]
+        self._macro_before = state["macro_before"]
+        self._macro_after = state["macro_after"]
+        self._suspend_history = state["suspend_history"]
+        self._history_sheet_key = key
 
     # ---------- REQUIRED OVERRIDES ----------
 
@@ -52,6 +97,7 @@ class TableModel(QAbstractTableModel):
         return name
     
     def setData(self, index, value, role=Qt.EditRole):
+        self._ensure_history_for_active_sheet()
         if role == Qt.EditRole:
             row, col = index.row(), index.column()
 
@@ -159,6 +205,7 @@ class TableModel(QAbstractTableModel):
 
 
     def clear_cells(self, positions):
+        self._ensure_history_for_active_sheet()
         unique_positions = list(dict.fromkeys(positions))
         if not unique_positions:
             return False
@@ -322,12 +369,16 @@ class TableModel(QAbstractTableModel):
         self.save_requested.emit()
         self._record_action(self._diff_cells(before, after))
 
-    def begin_compound_action(self):
-        if self._compound_changes is None:
-            self._compound_changes = []
+    def begin_macro(self):
+        self._ensure_history_for_active_sheet()
+        self._macro_depth += 1
+        if self._macro_depth == 1:
+            self._macro_before = {}
+            self._macro_after = {}
 
-    def end_compound_action(self):
-        if self._compound_changes is None:
+    def end_macro(self):
+        self._ensure_history_for_active_sheet()
+        if self._macro_depth == 0:
             return
         changes = self._compound_changes
         self._compound_changes = None
@@ -336,6 +387,7 @@ class TableModel(QAbstractTableModel):
         self._push_action(changes)
 
     def undo(self):
+        self._ensure_history_for_active_sheet()
         if not self._undo_stack:
             return
         changes = self._undo_stack.pop()
@@ -344,6 +396,7 @@ class TableModel(QAbstractTableModel):
         self._emit_undo_state()
 
     def redo(self):
+        self._ensure_history_for_active_sheet()
         if not self._redo_stack:
             return
         changes = self._redo_stack.pop()
@@ -352,13 +405,25 @@ class TableModel(QAbstractTableModel):
         self._emit_undo_state()
 
     def can_undo(self):
+        self._ensure_history_for_active_sheet()
         return bool(self._undo_stack)
 
     def can_redo(self):
+        self._ensure_history_for_active_sheet()
         return bool(self._redo_stack)
 
-    def _record_action(self, changes):
-        if self._suspend_undo:
+    def _snapshot_positions(self, positions):
+        cells = self.cells
+        snapshot = {}
+        for pos in positions:
+            if pos in snapshot:
+                continue
+            snapshot[pos] = cells.get(pos, "")
+        return snapshot
+
+    def _push_change(self, before, after):
+        self._ensure_history_for_active_sheet()
+        if self._suspend_history:
             return
         if self._compound_changes is not None:
             self._compound_changes.extend(changes)
