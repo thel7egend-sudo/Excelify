@@ -60,6 +60,7 @@ class TableModel(QAbstractTableModel):
 
             cells = self.document.active_sheet.cells
             before = cells.get((row, col), "")
+            after = "" if value is None else str(value)
 
             if after == before:
                 return False
@@ -73,7 +74,6 @@ class TableModel(QAbstractTableModel):
             self._push_change({(row, col): before}, {(row, col): after})
             self.dataChanged.emit(index, index)
             self.save_requested.emit()
-            self._push_change({(row, col): before}, {(row, col): after})
             return True
 
         return False
