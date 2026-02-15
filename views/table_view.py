@@ -313,14 +313,14 @@ class TableView(QTableView):
     
 
     def _invoke_action(self, primary_name, fallback_name):
-        primary = getattr(self, primary_name, None)
-        if callable(primary):
-            primary()
-            return
-
         fallback = getattr(self, fallback_name, None)
         if callable(fallback):
             fallback()
+            return
+
+        primary = getattr(self, primary_name, None)
+        if callable(primary):
+            primary()
 
     def clear_swap_mode(self):
         self.swap_mode = None
