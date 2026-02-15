@@ -94,15 +94,15 @@ class TableView(QTableView):
             return
 
         if event.matches(QKeySequence.Paste):
-            self._run_paste_action()
+            self._invoke_action("_run_paste_action", "_paste_clipboard_to_selection")
             return
 
         if event.matches(QKeySequence.Cut):
-            self._run_cut_action()
+            self._invoke_action("_run_cut_action", "_cut_selection_to_clipboard")
             return
 
         if event.key() == Qt.Key_Delete:
-            self._run_delete_action()
+            self._invoke_action("_run_delete_action", "_delete_selection_contents")
             return
 
         super().keyPressEvent(event)
@@ -305,12 +305,23 @@ class TableView(QTableView):
         elif action == copy_action:
             self._copy_selection_to_clipboard()
         elif action == paste_action:
-            self._run_paste_action()
+            self._invoke_action("_run_paste_action", "_paste_clipboard_to_selection")
         elif action == cut_action:
-            self._run_cut_action()
+            self._invoke_action("_run_cut_action", "_cut_selection_to_clipboard")
         elif action == delete_action:
-            self._run_delete_action()
+            self._invoke_action("_run_delete_action", "_delete_selection_contents")
     
+
+    def _invoke_action(self, primary_name, fallback_name):
+        primary = getattr(self, primary_name, None)
+        if callable(primary):
+            primary()
+            return
+
+        fallback = getattr(self, fallback_name, None)
+        if callable(fallback):
+            fallback()
+
     def clear_swap_mode(self):
         self.swap_mode = None
 

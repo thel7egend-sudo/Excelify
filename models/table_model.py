@@ -71,7 +71,6 @@ class TableModel(QAbstractTableModel):
             self._push_change({(row, col): before}, {(row, col): after})
             self.dataChanged.emit(index, index)
             self.save_requested.emit()
-            self._push_change({(row, col): before}, {(row, col): after})
             return True
 
         return False
