@@ -7,6 +7,7 @@ from faster_whisper import WhisperModel
 
 _MODEL_CACHE: Dict[str, WhisperModel] = {}
 _MODEL_LOCK = Lock()
+_ACCURACY_MODEL_NAME = "medium"
 
 
 def _get_model(model_name: str) -> WhisperModel:
@@ -20,7 +21,8 @@ def _get_model(model_name: str) -> WhisperModel:
 
 class WhisperTranscriber:
     def __init__(self, model_name: str = "base"):
-        self.model_name = model_name
+        # Force the transcription model to medium for better recognition accuracy.
+        self.model_name = _ACCURACY_MODEL_NAME
 
     def transcribe(self, audio: np.ndarray, samplerate: int) -> str:
         if audio.size == 0:
@@ -33,7 +35,11 @@ class WhisperTranscriber:
         model = _get_model(self.model_name)
         segments, _ = model.transcribe(
             audio,
-            language=None,
+            language="en",
+            task="transcribe",
+            beam_size=7,
+            temperature=0.0,
+            condition_on_previous_text=True,
             vad_filter=True,
         )
         parts = [segment.text for segment in segments]
