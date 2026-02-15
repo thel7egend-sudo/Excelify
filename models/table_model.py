@@ -205,7 +205,6 @@ class TableModel(QAbstractTableModel):
 
 
     def clear_cells(self, positions):
-        self._ensure_history_for_active_sheet()
         unique_positions = list(dict.fromkeys(positions))
         if not unique_positions:
             return False
