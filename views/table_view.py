@@ -1,7 +1,15 @@
-from PySide6.QtWidgets import QTableView, QApplication
+from PySide6.QtWidgets import QTableView, QApplication, QStyledItemDelegate
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtCore import QItemSelectionModel
 from PySide6.QtGui import QPainter, QColor, QKeySequence, QPen
+from PySide6.QtWidgets import QStyle
+
+
+class _NoFocusSelectionDelegate(QStyledItemDelegate):
+    def paint(self, painter, option, index):
+        option.state &= ~QStyle.State_Selected
+        option.state &= ~QStyle.State_HasFocus
+        super().paint(painter, option, index)
 
 class TableView(QTableView):
     drag_swap_requested = Signal(object, object)
@@ -33,6 +41,8 @@ class TableView(QTableView):
         
         self._drag_start_index = None
         self.zoom_box = None
+        self.setItemDelegate(_NoFocusSelectionDelegate(self))
+
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
 
@@ -80,19 +90,19 @@ class TableView(QTableView):
 
     def keyPressEvent(self, event):
         if event.matches(QKeySequence.Copy):
-            self._copy_selection_to_clipboard()
+            self._copy_selection_to_clipboard(rect)
             return
 
         if event.matches(QKeySequence.Paste):
-            self._run_paste_action()
+            self._invoke_action("_run_paste_action", "_paste_clipboard_to_selection")
             return
 
         if event.matches(QKeySequence.Cut):
-            self._run_cut_action()
+            self._invoke_action("_run_cut_action", "_cut_selection_to_clipboard")
             return
 
         if event.key() == Qt.Key_Delete:
-            self._run_delete_action()
+            self._invoke_action("_run_delete_action", "_delete_selection_contents")
             return
 
         super().keyPressEvent(event)
@@ -286,6 +296,7 @@ class TableView(QTableView):
         paste_action = menu.addAction("Paste")
         cut_action = menu.addAction("Cut")
         delete_action = menu.addAction("Delete")
+        target_rect = self._selected_rect()
         action = menu.exec(self.viewport().mapToGlobal(pos))
 
         if action == swap_action:
@@ -293,14 +304,25 @@ class TableView(QTableView):
             if hasattr(parent, "arm_rectangle_swap"):
                 parent.arm_rectangle_swap()
         elif action == copy_action:
-            self._copy_selection_to_clipboard()
+            self._copy_selection_to_clipboard(target_rect)
         elif action == paste_action:
-            self._run_paste_action()
+            self._invoke_action("_run_paste_action", "_paste_clipboard_to_selection", target_rect)
         elif action == cut_action:
-            self._run_cut_action()
+            self._invoke_action("_run_cut_action", "_cut_selection_to_clipboard", target_rect)
         elif action == delete_action:
-            self._run_delete_action()
+            self._invoke_action("_run_delete_action", "_delete_selection_contents", target_rect)
     
+
+    def _invoke_action(self, primary_name, fallback_name, *args, **kwargs):
+        fallback = getattr(self, fallback_name, None)
+        if callable(fallback):
+            fallback(*args, **kwargs)
+            return
+
+        primary = getattr(self, primary_name, None)
+        if callable(primary):
+            primary(*args, **kwargs)
+
     def clear_swap_mode(self):
         self.swap_mode = None
 
@@ -323,8 +345,45 @@ class TableView(QTableView):
         cols = [i.column() for i in selected]
         return min(rows), min(cols), max(rows), max(cols)
 
-    def _copy_selection_to_clipboard(self):
-        rect = self._selected_rect()
+    def _selected_positions(self, rect):
+        if rect is None:
+            return []
+
+        r1, c1, r2, c2 = rect
+        return [
+            (r, c)
+            for r in range(r1, r2 + 1)
+            for c in range(c1, c2 + 1)
+        ]
+
+    def _clear_rect_contents(self, rect):
+        positions = self._selected_positions(rect)
+        if not positions:
+            return False
+
+        model = self.model()
+        clear_cells = getattr(model, "clear_cells", None)
+        if callable(clear_cells):
+            return bool(clear_cells(positions))
+
+        begin_macro = getattr(model, "begin_macro", None)
+        end_macro = getattr(model, "end_macro", None)
+        if callable(begin_macro):
+            begin_macro()
+        changed = False
+        try:
+            for row, col in positions:
+                index = model.index(row, col)
+                if index.isValid() and model.setData(index, "", Qt.EditRole):
+                    changed = True
+        finally:
+            if callable(end_macro):
+                end_macro()
+
+        return changed
+
+    def _copy_selection_to_clipboard(self, rect=None):
+        rect = rect or self._selected_rect()
         if rect is None:
             return
 
@@ -339,12 +398,12 @@ class TableView(QTableView):
 
         QApplication.clipboard().setText("\n".join(lines))
 
-    def _paste_clipboard_to_selection(self):
+    def _paste_clipboard_to_selection(self, rect=None):
         text = QApplication.clipboard().text()
         if text == "":
             return
 
-        rect = self._selected_rect()
+        rect = rect or self._selected_rect()
         if rect is None:
             return
 
@@ -364,56 +423,32 @@ class TableView(QTableView):
         if callable(end_macro):
             end_macro()
 
-    def _cut_selection_to_clipboard(self):
-        rect = self._selected_rect()
+    def _cut_selection_to_clipboard(self, rect=None):
+        rect = rect or self._selected_rect()
         if rect is None:
             return
 
-        self._copy_selection_to_clipboard()
-        r1, c1, r2, c2 = rect
-        model = self.model()
-        begin_macro = getattr(model, "begin_macro", None)
-        end_macro = getattr(model, "end_macro", None)
-        if callable(begin_macro):
-            begin_macro()
-        for r in range(r1, r2 + 1):
-            for c in range(c1, c2 + 1):
-                index = model.index(r, c)
-                if index.isValid():
-                    model.setData(index, "", Qt.EditRole)
-        if callable(end_macro):
-            end_macro()
+        self._copy_selection_to_clipboard(rect)
+        self._clear_rect_contents(rect)
 
-    def _delete_selection_contents(self):
-        rect = self._selected_rect()
+    def _delete_selection_contents(self, rect=None):
+        rect = rect or self._selected_rect()
         if rect is None:
             return
 
-        r1, c1, r2, c2 = rect
-        model = self.model()
-        begin_macro = getattr(model, "begin_macro", None)
-        end_macro = getattr(model, "end_macro", None)
-        if callable(begin_macro):
-            begin_macro()
-        for r in range(r1, r2 + 1):
-            for c in range(c1, c2 + 1):
-                index = model.index(r, c)
-                if index.isValid():
-                    model.setData(index, "", Qt.EditRole)
-        if callable(end_macro):
-            end_macro()
+        self._clear_rect_contents(rect)
 
-    def _run_paste_action(self):
+    def _run_paste_action(self, rect=None):
         handler = getattr(self, "_paste_clipboard_to_selection", None)
         if callable(handler):
-            handler()
+            handler(rect)
 
-    def _run_cut_action(self):
+    def _run_cut_action(self, rect=None):
         handler = getattr(self, "_cut_selection_to_clipboard", None)
         if callable(handler):
-            handler()
+            handler(rect)
 
-    def _run_delete_action(self):
+    def _run_delete_action(self, rect=None):
         handler = getattr(self, "_delete_selection_contents", None)
         if callable(handler):
-            handler()
+            handler(rect)
