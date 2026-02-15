@@ -1,7 +1,15 @@
-from PySide6.QtWidgets import QTableView, QApplication
+from PySide6.QtWidgets import QTableView, QApplication, QStyledItemDelegate
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtCore import QItemSelectionModel
-from PySide6.QtGui import QPainter, QColor, QKeySequence
+from PySide6.QtGui import QPainter, QColor, QKeySequence, QPen
+from PySide6.QtWidgets import QStyle
+
+
+class _NoFocusSelectionDelegate(QStyledItemDelegate):
+    def paint(self, painter, option, index):
+        option.state &= ~QStyle.State_Selected
+        option.state &= ~QStyle.State_HasFocus
+        super().paint(painter, option, index)
 
 class TableView(QTableView):
     drag_swap_requested = Signal(object, object)
@@ -33,6 +41,8 @@ class TableView(QTableView):
         
         self._drag_start_index = None
         self.zoom_box = None
+        self.setItemDelegate(_NoFocusSelectionDelegate(self))
+
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
 
@@ -84,7 +94,15 @@ class TableView(QTableView):
             return
 
         if event.matches(QKeySequence.Paste):
-            self._paste_clipboard_to_selection()
+            self._run_paste_action()
+            return
+
+        if event.matches(QKeySequence.Cut):
+            self._run_cut_action()
+            return
+
+        if event.key() == Qt.Key_Delete:
+            self._run_delete_action()
             return
 
         super().keyPressEvent(event)
@@ -105,13 +123,45 @@ class TableView(QTableView):
     def paintEvent(self, event):
         super().paintEvent(event)
 
+        painter = QPainter(self.viewport())
+
         if self._ghost_active and self._ghost_rect:
-            painter = QPainter(self.viewport())
-            painter.setPen(QColor(0, 120, 215))
-            painter.setBrush(QColor(0, 120, 215, 60))
+            painter.setPen(QColor(37, 109, 133))
+            painter.setBrush(QColor(37, 109, 133, 45))
             painter.drawRect(self._ghost_rect)
 
+        selection = self.selectionModel()
+        if selection is None:
+            return
 
+        selected = selection.selectedIndexes()
+        if not selected:
+            return
+
+        accent = QColor(37, 109, 133)
+
+        if len(selected) == 1:
+            rect = self.visualRect(selected[0]).adjusted(1, 1, -1, -1)
+            if rect.isValid():
+                painter.setPen(QPen(accent, 2))
+                painter.setBrush(Qt.NoBrush)
+                painter.drawRect(rect)
+            return
+
+        rows = [idx.row() for idx in selected]
+        cols = [idx.column() for idx in selected]
+        top_left = self.model().index(min(rows), min(cols))
+        bottom_right = self.model().index(max(rows), max(cols))
+        selection_rect = self.visualRect(top_left).united(self.visualRect(bottom_right)).adjusted(1, 1, -1, -1)
+
+        if selection_rect.isValid():
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(37, 109, 133, 16))
+            painter.drawRect(selection_rect)
+
+            painter.setPen(QPen(accent, 2))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRect(selection_rect)
 
     def mouseReleaseEvent(self, event):
         if self._ghost_active:
@@ -244,6 +294,8 @@ class TableView(QTableView):
         swap_action = menu.addAction("Swap Rectangle")
         copy_action = menu.addAction("Copy")
         paste_action = menu.addAction("Paste")
+        cut_action = menu.addAction("Cut")
+        delete_action = menu.addAction("Delete")
         action = menu.exec(self.viewport().mapToGlobal(pos))
 
         if action == swap_action:
@@ -253,7 +305,11 @@ class TableView(QTableView):
         elif action == copy_action:
             self._copy_selection_to_clipboard()
         elif action == paste_action:
-            self._paste_clipboard_to_selection()
+            self._run_paste_action()
+        elif action == cut_action:
+            self._run_cut_action()
+        elif action == delete_action:
+            self._run_delete_action()
     
     def clear_swap_mode(self):
         self.swap_mode = None
@@ -265,6 +321,7 @@ class TableView(QTableView):
         selection = self.selectionModel()
         if selection is None:
             return None
+
         selected = selection.selectedIndexes()
         if not selected:
             index = self.currentIndex()
@@ -301,6 +358,11 @@ class TableView(QTableView):
         if rect is None:
             return
 
+        model = self.model()
+        begin_macro = getattr(model, "begin_macro", None)
+        end_macro = getattr(model, "end_macro", None)
+        if callable(begin_macro):
+            begin_macro()
         start_row, start_col, _, _ = rect
         model = self.model()
         if hasattr(model, "begin_compound_action"):

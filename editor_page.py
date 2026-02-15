@@ -237,6 +237,7 @@ class EditorPage(QWidget):
         self.document = document
         self.sheet_buttons = []
         self.swap_mode = None
+        self.model = TableModel(document)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -371,7 +372,6 @@ class EditorPage(QWidget):
 
         ribbon_layout.addWidget(self.export_btn)
 
-
         layout.addWidget(tool_ribbon)
 
 
@@ -386,6 +386,155 @@ class EditorPage(QWidget):
         self.view.block_swap_requested.connect(self.handle_block_swap)
 
         self.view.drag_swap_requested.connect(self.handle_drag_swap)
+        self._restoring_sizes = False
+        self._default_row_height = self.view.verticalHeader().defaultSectionSize()
+        self._default_col_width = self.view.horizontalHeader().defaultSectionSize()
+        self.view.verticalHeader().sectionResized.connect(self._on_row_resized)
+        self.view.horizontalHeader().sectionResized.connect(self._on_col_resized)
+        self._apply_sheet_sizes()
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
+
+        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
+        self.voice_controller.recording_started.connect(self._on_dictate_started)
+        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
+        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
+        self.voice_controller.transcription_error.connect(self._on_dictate_error)
+        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
+        self.voice_controller.level_changed.connect(self._on_dictate_level)
 
         self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
         self.voice_controller.recording_started.connect(self._on_dictate_started)
@@ -408,6 +557,7 @@ class EditorPage(QWidget):
         self.zoom_box = ZoomBoxEdit(self)
         self.zoom_box.setObjectName("zoomBox")
         self.zoom_box.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self._apply_zoom_box_font_size()
 
         self.zoom_box.textChanged.connect(self._on_zoom_text_changed)
         self.zoom_box.commit_requested.connect(self._commit_zoom_box)
@@ -458,6 +608,14 @@ class EditorPage(QWidget):
         sheet_layout.addStretch()
 
         layout.addWidget(sheet_bar)
+
+    def _apply_zoom_box_font_size(self):
+        font = self.zoom_box.font()
+        point_size = font.pointSizeF()
+        if point_size <= 0:
+            point_size = 10.0
+        font.setPointSizeF(point_size + 4.0)
+        self.zoom_box.setFont(font)
     def refresh_sheet_buttons(self):
         # remove old buttons
         for btn in self.sheet_buttons:
@@ -493,6 +651,7 @@ class EditorPage(QWidget):
         self.refresh_sheet_buttons()
         self._deactivate_swaps()
         self._deactivate_zoom_box()
+        self._apply_sheet_sizes()
         self.document_changed.emit()
     def switch_sheet(self, index):
         self.document.active_sheet_index = index
@@ -500,6 +659,7 @@ class EditorPage(QWidget):
         self.refresh_sheet_buttons()
         self._deactivate_swaps()
         self._deactivate_zoom_box()
+        self._apply_sheet_sizes()
     def show_sheet_context_menu(self, index, button):
         from PySide6.QtWidgets import QMenu, QInputDialog, QMessageBox
 
@@ -564,6 +724,7 @@ class EditorPage(QWidget):
         self.refresh_sheet_buttons()
         self._deactivate_swaps()
         self._deactivate_zoom_box()
+        self._apply_sheet_sizes()
         self.document_changed.emit() 
     def handle_drag_swap(self, start_index, end_index):
         r1, c1 = start_index.row(), start_index.column()
@@ -687,6 +848,50 @@ class EditorPage(QWidget):
 
         if self._saved_edit_triggers is not None:
             self.view.setEditTriggers(self._saved_edit_triggers)
+
+    def _apply_sheet_sizes(self):
+        sheet = self.document.active_sheet
+        v_header = self.view.verticalHeader()
+        h_header = self.view.horizontalHeader()
+        self._restoring_sizes = True
+        try:
+            self._reset_header_sizes(
+                v_header, self.model.rowCount(), self._default_row_height
+            )
+            self._reset_header_sizes(
+                h_header, self.model.columnCount(), self._default_col_width
+            )
+            for row, height in sheet.row_heights.items():
+                v_header.resizeSection(row, height)
+            for col, width in sheet.col_widths.items():
+                h_header.resizeSection(col, width)
+        finally:
+            self._restoring_sizes = False
+
+    def _reset_header_sizes(self, header, count, default_size):
+        header.setDefaultSectionSize(default_size)
+        for index in range(count):
+            header.resizeSection(index, default_size)
+
+    def _on_row_resized(self, logical_index, old_size, new_size):
+        if self._restoring_sizes:
+            return
+        sheet = self.document.active_sheet
+        if new_size == self._default_row_height:
+            sheet.row_heights.pop(logical_index, None)
+        else:
+            sheet.row_heights[logical_index] = new_size
+        self.document_changed.emit()
+
+    def _on_col_resized(self, logical_index, old_size, new_size):
+        if self._restoring_sizes:
+            return
+        sheet = self.document.active_sheet
+        if new_size == self._default_col_width:
+            sheet.col_widths.pop(logical_index, None)
+        else:
+            sheet.col_widths[logical_index] = new_size
+        self.document_changed.emit()
 
     def _update_zoom_box_size_from_ratio(self):
         viewport = self.view.viewport().size()
@@ -912,13 +1117,27 @@ class EditorPage(QWidget):
         count = min(segment_count, max_rows)
         return [(row + i, col) for i in range(count)]
 
-    def _targets_need_overwrite_confirmation(self, values, source_index):
+    def _targets_need_overwrite_confirmation(self, values, source_index=None):
+        source_row = source_index.row() if source_index and source_index.isValid() else None
+        source_col = source_index.column() if source_index and source_index.isValid() else None
+
         for row, col, value in values:
-            idx = self.model.index(row, col)
-            if idx == source_index:
+            if row == source_row and col == source_col:
                 continue
+
+            idx = self.model.index(row, col)
             existing = self.model.data(idx, Qt.EditRole) or ""
-            if existing != "" and existing != value:
+            if existing != "":
+                return True
+        return False
+
+    def _targets_have_data(self, targets):
+        # Backward-compatible helper for older call sites that still invoke
+        # _targets_have_data during segment commit checks.
+        for row, col in targets:
+            idx = self.model.index(row, col)
+            existing = self.model.data(idx, Qt.EditRole) or ""
+            if existing != "":
                 return True
         return False
 
@@ -1208,26 +1427,233 @@ class EditorPage(QWidget):
 
     def apply_grid_dark_mode(self, enabled: bool):
         if not enabled:
-            self.setStyleSheet("")
+            self.setStyleSheet("""
+            QWidget {
+                background-color: #f7f8fa;
+                color: #111827;
+            }
+
+            QWidget#editorRibbon {
+                background-color: #f9fafb;
+                border-bottom: 1px solid #e5e7eb;
+            }
+
+            QWidget#editorRibbon QPushButton,
+            QWidget#editorRibbon QToolButton {
+                background-color: #ffffff;
+                color: #111827;
+                border: 1px solid #e5e7eb;
+                border-radius: 8px;
+                padding: 6px 14px;
+                font-weight: 500;
+            }
+
+            QWidget#editorRibbon QPushButton:hover,
+            QWidget#editorRibbon QToolButton:hover {
+                background-color: #f3f4f6;
+                border: 1px solid #cbd5e1;
+            }
+
+            QWidget#editorRibbon QPushButton:focus,
+            QWidget#editorRibbon QToolButton:focus {
+                border: 1px solid #256d85;
+            }
+
+            QWidget#editorRibbon QPushButton:checked {
+                background-color: #256d85;
+                color: #ffffff;
+                border: 1px solid #256d85;
+            }
+
+            QWidget#editorRibbon QPushButton:disabled,
+            QWidget#editorRibbon QToolButton:disabled {
+                color: #9ca3af;
+                background-color: #f3f4f6;
+                border: 1px solid #e5e7eb;
+            }
+
+            QPushButton[sheetButton="true"] {
+                background-color: #f3f4f6;
+                color: #4b5563;
+                border: 1px solid #e5e7eb;
+                border-radius: 6px;
+                padding: 0 12px;
+                font-weight: 400;
+            }
+
+            QPushButton[sheetButton="true"]:checked {
+                background-color: #256d85;
+                color: #ffffff;
+                border: 1px solid #256d85;
+                font-weight: 500;
+            }
+
+            QPushButton[sheetButton="true"]:hover {
+                background-color: #ffffff;
+                border: 1px solid #d1d5db;
+            }
+
+            QWidget#sheetBar QPushButton {
+                background-color: #f3f4f6;
+                color: #4b5563;
+                border: 1px solid #e5e7eb;
+                border-radius: 6px;
+            }
+
+            QWidget#sheetBar QPushButton[sheetButton="true"]:checked {
+                background-color: #256d85;
+                color: #ffffff;
+                border: 1px solid #256d85;
+            }
+
+            QTableView {
+                background-color: #ffffff;
+                gridline-color: #e5e7eb;
+                color: #111827;
+                selection-background-color: transparent;
+                selection-color: #111827;
+                border: 1px solid #e5e7eb;
+            }
+
+            QTableView::item:selected {
+                background-color: transparent;
+                color: #111827;
+            }
+
+            QAbstractScrollArea::viewport {
+                background-color: #ffffff;
+            }
+
+            QAbstractScrollArea::corner {
+                background: #f7f8fa;
+            }
+
+            QHeaderView {
+                background-color: #f9fafb;
+            }
+
+            QHeaderView::section {
+                background-color: #f3f4f6;
+                color: #374151;
+                border: 1px solid #e5e7eb;
+                border-bottom: 1px solid #d1d5db;
+                padding: 4px;
+            }
+
+            QTableCornerButton::section,
+            QTableView QTableCornerButton::section {
+                background-color: #f9fafb;
+                border: 1px solid #e5e7eb;
+            }
+
+            QWidget#sheetBar {
+                background-color: #f7f8fa;
+                border-top: 1px solid #e5e7eb;
+            }
+
+            QWidget#zoomBoxHost {
+                background-color: #f3f4f6;
+                border-top: 1px solid #e5e7eb;
+            }
+
+            QPlainTextEdit#zoomBox {
+                background-color: #ffffff;
+                color: #111827;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+            }
+
+            QScrollBar:vertical, QScrollBar:horizontal {
+                background: #f3f4f6;
+                height: 10px;
+                width: 10px;
+                margin: 0px;
+            }
+            QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+                background: #d1d5db;
+                min-height: 24px;
+                min-width: 24px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {
+                background: #9ca3af;
+            }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical,
+            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+                background: #f3f4f6;
+            }
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical,
+            QScrollBar::add-line:horizontal,
+            QScrollBar::sub-line:horizontal {
+                height: 0px;
+                width: 0px;
+            }
+            """)
             return
 
         self.setStyleSheet("""
-        /* ===============================
-        GLOBAL EDITOR
-        =============================== */
         QWidget {
-            background-color: #1e1e1e;
-            color: #e6e6e6;
+            background-color: #202124;
+            color: #eaeaea;
         }
 
-        /* ===============================
-        TOOL RIBBON
-        =============================== */
         QWidget#editorRibbon {
-            background-color: #252526;
+            background-color: #252525;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         }
 
-        QWidget#editorRibbon QPushButton {
+        QWidget#editorRibbon QPushButton,
+        QWidget#editorRibbon QToolButton {
+            background-color: #2a2a2a;
+            color: #eaeaea;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 8px;
+            padding: 6px 14px;
+            font-weight: 500;
+        }
+
+        QWidget#editorRibbon QToolButton {
+            background-color: #2d2d30;
+            color: #e6e6e6;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            padding: 4px 12px;
+        }
+
+        QWidget#editorRibbon QToolButton {
+            background-color: #2d2d30;
+            color: #e6e6e6;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            padding: 4px 12px;
+        }
+
+        QWidget#editorRibbon QToolButton {
+            background-color: #2d2d30;
+            color: #e6e6e6;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            padding: 4px 12px;
+        }
+
+        QWidget#editorRibbon QToolButton {
+            background-color: #2d2d30;
+            color: #e6e6e6;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            padding: 4px 12px;
+        }
+
+        QWidget#editorRibbon QToolButton {
+            background-color: #2d2d30;
+            color: #e6e6e6;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            padding: 4px 12px;
+        }
+
+        QWidget#editorRibbon QToolButton {
             background-color: #2d2d30;
             color: #e6e6e6;
             border: 1px solid #3a3a3a;
@@ -1252,12 +1678,43 @@ class EditorPage(QWidget):
         }
 
         QWidget#editorRibbon QPushButton:checked {
-            background-color: #094771;
+            background-color: #256d85;
             color: #ffffff;
-            border: 1px solid #1a6fb3;
+            border: 1px solid #256d85;
         }
 
-        QWidget#editorRibbon QPushButton:disabled {
+        QWidget#editorRibbon QPushButton:disabled,
+        QWidget#editorRibbon QToolButton:disabled {
+            color: #a0a0a0;
+            background-color: #2a2a2a;
+        }
+
+        QWidget#editorRibbon QToolButton:disabled {
+            color: #9e9e9e;
+            background-color: #2a2a2a;
+        }
+
+        QWidget#editorRibbon QToolButton:disabled {
+            color: #9e9e9e;
+            background-color: #2a2a2a;
+        }
+
+        QWidget#editorRibbon QToolButton:disabled {
+            color: #9e9e9e;
+            background-color: #2a2a2a;
+        }
+
+        QWidget#editorRibbon QToolButton:disabled {
+            color: #9e9e9e;
+            background-color: #2a2a2a;
+        }
+
+        QWidget#editorRibbon QToolButton:disabled {
+            color: #9e9e9e;
+            background-color: #2a2a2a;
+        }
+
+        QWidget#editorRibbon QToolButton:disabled {
             color: #9e9e9e;
             background-color: #2a2a2a;
         }
@@ -1271,122 +1728,114 @@ class EditorPage(QWidget):
         SHEET BUTTONS (NOT QTabBar!)
         =============================== */
         QPushButton[sheetButton="true"] {
-            background-color: #2b2b2b;
-            color: #e6e6e6;
-            border: 1px solid #3a3a3a;
-            border-radius: 4px;
+            background-color: #2a2a2a;
+            color: #a0a0a0;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 6px;
             padding: 0 12px;
+            font-weight: 400;
         }
 
         QPushButton[sheetButton="true"]:checked {
-            background-color: #094771;
+            background-color: #256d85;
             color: #ffffff;
-            border: 1px solid #1a6fb3;
+            border: 1px solid #256d85;
+            font-weight: 500;
         }
 
         QPushButton[sheetButton="true"]:hover {
-            background-color: #333333;
+            background-color: #2e2e2e;
+            border: 1px solid rgba(255, 255, 255, 0.10);
         }
 
         QWidget#sheetBar QPushButton {
-            background-color: #2b2b2b;
-            color: #e6e6e6;
-            border: 1px solid #3a3a3a;
-            border-radius: 4px;
-        }
-
-        /* ===============================
-        TABLE GRID
-        =============================== */
-        QTableView {
-            background-color: #1e1e1e;
-            gridline-color: #3a3a3a;
-            color: #e6e6e6;
-            selection-background-color: #094771;
-            selection-color: #ffffff;
-            border: 1px solid #2b2b2b;
-        }
-
-        QTableView::item:selected {
-            background-color: #094771;
-            color: #ffffff;
-        }
-
-        QAbstractScrollArea::viewport {
-            background-color: #1e1e1e;
-        }
-
-        QAbstractScrollArea::corner {
-            background: #1e1e1e;
-        }
-
-        /* ===============================
-        HEADERS
-        =============================== */
-        QHeaderView {
-            background-color: #252526;
-        }
-
-        QHeaderView::section {
-            background-color: #252526;
-            color: #e6e6e6;
-            border: 1px solid #3a3a3a;
-            padding: 4px;
-        }
-
-        QTableCornerButton::section {
-            background-color: #252526;
-            border: 1px solid #3a3a3a;
-        }
-
-        QTableView QTableCornerButton::section {
-            background-color: #252526;
-            border: 1px solid #3a3a3a;
-        }
-
-        /* ===============================
-        SHEET BAR
-        =============================== */
-        QWidget#sheetBar {
-            background-color: #1e1e1e;
-            border-top: 1px solid #2b2b2b;
-        }
-
-        /* ===============================
-        ZOOM BOX
-        =============================== */
-        QWidget#zoomBoxHost {
-            background-color: #252526;
-        }
-
-        QPlainTextEdit#zoomBox {
-            background-color: #1f1f1f;
-            color: #e6e6e6;
-            border: 1px solid #4a4a4a;
+            background-color: #2a2a2a;
+            color: #a0a0a0;
+            border: 1px solid rgba(255, 255, 255, 0.06);
             border-radius: 6px;
         }
 
-        /* ===============================
-        SCROLLBARS
-        =============================== */
+        QWidget#sheetBar QPushButton[sheetButton="true"]:checked {
+            background-color: #256d85;
+            color: #ffffff;
+            border: 1px solid #256d85;
+        }
+
+        QTableView {
+            background-color: #252525;
+            gridline-color: rgba(255, 255, 255, 0.06);
+            color: #eaeaea;
+            selection-background-color: transparent;
+            selection-color: #eaeaea;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        QTableView::item:selected {
+            background-color: transparent;
+            color: #eaeaea;
+        }
+
+        QAbstractScrollArea::viewport {
+            background-color: #252525;
+        }
+
+        QAbstractScrollArea::corner {
+            background: #202124;
+        }
+
+        QHeaderView {
+            background-color: #202124;
+        }
+
+        QHeaderView::section {
+            background-color: #2a2a2a;
+            color: #eaeaea;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+            padding: 4px;
+        }
+
+        QTableCornerButton::section,
+        QTableView QTableCornerButton::section {
+            background-color: #202124;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        QWidget#sheetBar {
+            background-color: #202124;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        QWidget#zoomBoxHost {
+            background-color: #2a2a2a;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        QPlainTextEdit#zoomBox {
+            background-color: #202124;
+            color: #eaeaea;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 8px;
+        }
+
         QScrollBar:vertical, QScrollBar:horizontal {
-            background: #1e1e1e;
+            background: #202124;
             height: 10px;
             width: 10px;
             margin: 0px;
         }
         QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
-            background: #3a3a3a;
+            background: #2e2e2e;
             min-height: 24px;
             min-width: 24px;
             border-radius: 4px;
         }
         QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {
-            background: #4a4a4a;
+            background: #3a3a3a;
         }
         QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical,
         QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
-            background: #1e1e1e;
+            background: #202124;
         }
         QScrollBar::add-line:vertical,
         QScrollBar::sub-line:vertical,
