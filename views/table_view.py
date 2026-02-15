@@ -345,6 +345,43 @@ class TableView(QTableView):
         cols = [i.column() for i in selected]
         return min(rows), min(cols), max(rows), max(cols)
 
+    def _selected_positions(self, rect):
+        if rect is None:
+            return []
+
+        r1, c1, r2, c2 = rect
+        return [
+            (r, c)
+            for r in range(r1, r2 + 1)
+            for c in range(c1, c2 + 1)
+        ]
+
+    def _clear_rect_contents(self, rect):
+        positions = self._selected_positions(rect)
+        if not positions:
+            return False
+
+        model = self.model()
+        clear_cells = getattr(model, "clear_cells", None)
+        if callable(clear_cells):
+            return bool(clear_cells(positions))
+
+        begin_macro = getattr(model, "begin_macro", None)
+        end_macro = getattr(model, "end_macro", None)
+        if callable(begin_macro):
+            begin_macro()
+        changed = False
+        try:
+            for row, col in positions:
+                index = model.index(row, col)
+                if index.isValid() and model.setData(index, "", Qt.EditRole):
+                    changed = True
+        finally:
+            if callable(end_macro):
+                end_macro()
+
+        return changed
+
     def _copy_selection_to_clipboard(self, rect=None):
         rect = rect or self._selected_rect()
         if rect is None:
@@ -395,38 +432,14 @@ class TableView(QTableView):
             return
 
         self._copy_selection_to_clipboard(rect)
-        r1, c1, r2, c2 = rect
-        model = self.model()
-        begin_macro = getattr(model, "begin_macro", None)
-        end_macro = getattr(model, "end_macro", None)
-        if callable(begin_macro):
-            begin_macro()
-        for r in range(r1, r2 + 1):
-            for c in range(c1, c2 + 1):
-                index = model.index(r, c)
-                if index.isValid():
-                    model.setData(index, "", Qt.EditRole)
-        if callable(end_macro):
-            end_macro()
+        self._clear_rect_contents(rect)
 
     def _delete_selection_contents(self, rect=None):
         rect = rect or self._selected_rect()
         if rect is None:
             return
 
-        r1, c1, r2, c2 = rect
-        model = self.model()
-        begin_macro = getattr(model, "begin_macro", None)
-        end_macro = getattr(model, "end_macro", None)
-        if callable(begin_macro):
-            begin_macro()
-        for r in range(r1, r2 + 1):
-            for c in range(c1, c2 + 1):
-                index = model.index(r, c)
-                if index.isValid():
-                    model.setData(index, "", Qt.EditRole)
-        if callable(end_macro):
-            end_macro()
+        self._clear_rect_contents(rect)
 
     def _run_paste_action(self, rect=None):
         handler = getattr(self, "_paste_clipboard_to_selection", None)
