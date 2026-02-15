@@ -648,6 +648,7 @@ class EditorPage(QWidget):
         self.document.sheets.append(Sheet(f"Sheet{count}"))
         self.document.active_sheet_index = len(self.document.sheets) - 1
         self.model.layoutChanged.emit()
+        self._update_undo_redo_state(self.model.can_undo(), self.model.can_redo())
         self.refresh_sheet_buttons()
         self._deactivate_swaps()
         self._deactivate_zoom_box()
@@ -656,6 +657,7 @@ class EditorPage(QWidget):
     def switch_sheet(self, index):
         self.document.active_sheet_index = index
         self.model.layoutChanged.emit()
+        self._update_undo_redo_state(self.model.can_undo(), self.model.can_redo())
         self.refresh_sheet_buttons()
         self._deactivate_swaps()
         self._deactivate_zoom_box()
@@ -721,6 +723,7 @@ class EditorPage(QWidget):
             self.document.active_sheet_index = len(self.document.sheets) - 1
 
         self.model.layoutChanged.emit()
+        self._update_undo_redo_state(self.model.can_undo(), self.model.can_redo())
         self.refresh_sheet_buttons()
         self._deactivate_swaps()
         self._deactivate_zoom_box()
