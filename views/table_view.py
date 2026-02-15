@@ -413,6 +413,9 @@ class TableView(QTableView):
         if callable(begin_macro):
             begin_macro()
         start_row, start_col, _, _ = rect
+        model = self.model()
+        if hasattr(model, "begin_compound_action"):
+            model.begin_compound_action()
         rows = text.splitlines() or [""]
         for r_offset, row_text in enumerate(rows):
             cols = row_text.split("\t")
