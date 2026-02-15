@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from collections import deque
 from typing import Optional, Tuple
 
 import numpy as np
@@ -41,6 +42,7 @@ class VoiceController(QObject):
     transcription_error = Signal(str)
     hint_requested = Signal(str)
     level_changed = Signal(float)
+    transcription_idle = Signal()
 
     def __init__(self, max_duration_s: int = 90, model_name: str = "base"):
         super().__init__()
@@ -52,7 +54,11 @@ class VoiceController(QObject):
         self._timeout_timer.setSingleShot(True)
         self._timeout_timer.timeout.connect(self._handle_timeout)
         self._active_worker: Optional[TranscriptionWorker] = None
+        self._pending_jobs = deque()
         self._recording_target: Optional[TranscriptionTarget] = None
+        self._chunk_timer = QTimer(self)
+        self._chunk_timer.setInterval(2200)
+        self._chunk_timer.timeout.connect(self._flush_current_chunk)
         self._level_timer = QTimer(self)
         self._level_timer.setInterval(80)
         self._level_timer.timeout.connect(self._emit_level)
@@ -66,7 +72,7 @@ class VoiceController(QObject):
     @property
     def is_transcribing(self) -> bool:
         if self._active_worker is None:
-            return False
+            return bool(self._pending_jobs)
         if self._active_worker.isRunning():
             return True
 
@@ -97,20 +103,37 @@ class VoiceController(QObject):
             self.transcription_error.emit(str(exc))
             return
         self._level_timer.start()
-        self._timeout_timer.start(self._max_duration_s * 1000)
+        self._chunk_timer.start()
         self.recording_started.emit()
 
     def stop_recording(self, target: TranscriptionTarget, hint: Optional[str] = None) -> None:
         if not self.is_recording:
             return
+        self.flush_recording_segment(target)
         self._level_timer.stop()
+        self._chunk_timer.stop()
         self._timeout_timer.stop()
-        audio = self._recorder.stop()
+        self._recorder.stop()
         self.recording_stopped.emit()
         self._recording_target = None
         if hint:
             self.hint_requested.emit(hint)
-        self._start_transcription(audio, target)
+        self._start_next_job_if_idle()
+
+    def flush_recording_segment(self, target: Optional[TranscriptionTarget] = None) -> None:
+        if not self.is_recording:
+            return
+        segment_target = target or self._recording_target
+        if segment_target is None:
+            return
+        audio = self._recorder.consume_audio_chunk()
+        if audio.size == 0:
+            return
+        self._pending_jobs.append((audio, segment_target))
+        self._start_next_job_if_idle()
+
+    def _flush_current_chunk(self) -> None:
+        self.flush_recording_segment(self._recording_target)
 
     def _start_transcription(self, audio: np.ndarray, target: TranscriptionTarget) -> None:
         if self._active_worker is not None:
@@ -122,6 +145,15 @@ class VoiceController(QObject):
         self._active_worker = worker
         worker.start()
 
+    def _start_next_job_if_idle(self) -> None:
+        if self._active_worker is not None:
+            return
+        if not self._pending_jobs:
+            self.transcription_idle.emit()
+            return
+        audio, target = self._pending_jobs.popleft()
+        self._start_transcription(audio, target)
+
     def _handle_result(self, text: str, target: TranscriptionTarget) -> None:
         self.transcription_ready.emit(text, target)
 
@@ -132,6 +164,7 @@ class VoiceController(QObject):
         if self._active_worker is not None:
             self._active_worker.deleteLater()
             self._active_worker = None
+        self._start_next_job_if_idle()
 
     def _handle_timeout(self) -> None:
         if not self.is_recording:

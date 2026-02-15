@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import List, Optional
+import threading
 
 import numpy as np
 import sounddevice as sd
@@ -77,6 +78,8 @@ class AudioRecorder:
         self._recording = False
         self._last_rms = 0.0
         self._level_callback = None
+        self._lock = threading.Lock()
+        self._consumed_frames = 0
 
     def set_level_callback(self, callback):
         self._level_callback = callback
@@ -91,7 +94,9 @@ class AudioRecorder:
     def start(self, device_id: Optional[int] = None) -> None:
         if self._recording:
             return
-        self._frames = []
+        with self._lock:
+            self._frames = []
+            self._consumed_frames = 0
         self._stream = sd.InputStream(
             samplerate=self.samplerate,
             channels=self.channels,
@@ -113,14 +118,28 @@ class AudioRecorder:
             self._stream = None
             self._recording = False
 
-        if not self._frames:
+        with self._lock:
+            if not self._frames:
+                return np.array([], dtype=self.dtype)
+            audio = np.concatenate(self._frames, axis=0)
+            self._consumed_frames = len(self._frames)
+            return audio
+
+    def consume_audio_chunk(self) -> np.ndarray:
+        with self._lock:
+            if self._consumed_frames >= len(self._frames):
+                return np.array([], dtype=self.dtype)
+            chunk_frames = self._frames[self._consumed_frames:]
+            self._consumed_frames = len(self._frames)
+        if not chunk_frames:
             return np.array([], dtype=self.dtype)
-        return np.concatenate(self._frames, axis=0)
+        return np.concatenate(chunk_frames, axis=0)
 
     def _callback(self, indata, frames, time, status):
         if status:
             pass
-        self._frames.append(indata.copy())
+        with self._lock:
+            self._frames.append(indata.copy())
         rms = float(np.sqrt(np.mean(indata**2)))
         self._last_rms = rms
         if self._level_callback is not None:

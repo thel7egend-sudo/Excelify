@@ -543,6 +543,7 @@ class EditorPage(QWidget):
         self.voice_controller.transcription_error.connect(self._on_dictate_error)
         self.voice_controller.hint_requested.connect(self._show_dictate_hint)
         self.voice_controller.level_changed.connect(self._on_dictate_level)
+        self.voice_controller.transcription_idle.connect(self._on_dictate_transcription_idle)
 
         self._zoom_box_geometry = None
         self._zoom_box_ratio = (0.7, 0.1)
@@ -553,6 +554,8 @@ class EditorPage(QWidget):
         self._dictate_level_ema = 0.0
         self._dictate_noise_floor = 0.0
         self._dictate_peak_level = 0.0
+        self._dictate_buffer_target = None
+        self._dictate_current_cell_buffer = ""
 
         self.zoom_box = ZoomBoxEdit(self)
         self.zoom_box.setObjectName("zoomBox")
@@ -919,12 +922,11 @@ class EditorPage(QWidget):
 
     def _on_current_changed(self, current, previous):
         if self.voice_controller.is_recording:
-            target_index = previous if previous.isValid() else current
-            if target_index.isValid():
-                target = TranscriptionTarget(target_index.row(), target_index.column())
-            else:
-                target = TranscriptionTarget(0, 0)
-            self.voice_controller.stop_recording(target)
+            previous_target = self._target_from_index(previous if previous.isValid() else current)
+            self._finalize_dictate_buffer(previous_target)
+            self._dictate_buffer_target = self._target_from_index(current)
+            self.voice_controller.flush_recording_segment(previous_target)
+            self.voice_controller.set_recording_target(self._dictate_buffer_target)
 
         if not self.zoom_box_host.isVisible():
             return
@@ -1210,7 +1212,7 @@ class EditorPage(QWidget):
             self.redo_btn.setEnabled(can_redo)
 
     def _toggle_dictate(self):
-        if self.voice_controller.is_transcribing:
+        if self.voice_controller.is_transcribing and not self.voice_controller.is_recording:
             self._show_dictate_hint("Transcribing... please wait.")
             return
 
@@ -1218,9 +1220,11 @@ class EditorPage(QWidget):
         target = TranscriptionTarget(index.row(), index.column())
 
         if self.voice_controller.is_recording:
-            self._show_transcribing_status(True)
             self.voice_controller.stop_recording(target)
+            self._show_transcribing_status(True)
         else:
+            self._dictate_buffer_target = target
+            self._dictate_current_cell_buffer = ""
             self._show_transcribing_status(False)
             self.voice_controller.start_recording(target)
 
@@ -1309,12 +1313,26 @@ class EditorPage(QWidget):
         self._dictate_peak_level = 0.0
 
     def _on_dictate_transcription_ready(self, text, target):
-        self._show_transcribing_status(False)
+        if not text:
+            return
+        if self._same_target(target, self._dictate_buffer_target):
+            self._dictate_current_cell_buffer = self._merge_dictate_text(
+                self._dictate_current_cell_buffer,
+                text,
+            )
+            return
         self._append_text_to_cell(text, target)
 
     def _on_dictate_error(self, message):
         self._show_transcribing_status(False)
         self._show_dictate_hint(f"Transcription failed: {message}")
+
+    def _on_dictate_transcription_idle(self):
+        if self.voice_controller.is_recording:
+            return
+        self._finalize_dictate_buffer(self._dictate_buffer_target)
+        self._dictate_buffer_target = None
+        self._show_transcribing_status(False)
 
     def _show_transcribing_status(self, visible):
         if visible:
@@ -1402,11 +1420,33 @@ class EditorPage(QWidget):
         if not index.isValid():
             return
         current = self.model.data(index, Qt.EditRole) or ""
-        separator = ""
-        if current and text and not current.endswith((" ", "\n")) and not text.startswith(" "):
-            separator = " "
-        updated = f"{current}{separator}{text}"
+        updated = self._merge_dictate_text(current, text)
         self.model.setData(index, updated, Qt.EditRole)
+
+    def _finalize_dictate_buffer(self, target):
+        if target is None:
+            self._dictate_current_cell_buffer = ""
+            return
+        if not self._dictate_current_cell_buffer:
+            return
+        self._append_text_to_cell(self._dictate_current_cell_buffer, target)
+        self._dictate_current_cell_buffer = ""
+
+    def _target_from_index(self, index):
+        if index is not None and index.isValid():
+            return TranscriptionTarget(index.row(), index.column())
+        return TranscriptionTarget(0, 0)
+
+    def _same_target(self, left, right):
+        if left is None or right is None:
+            return False
+        return left.row == right.row and left.column == right.column
+
+    def _merge_dictate_text(self, current, new_text):
+        separator = ""
+        if current and new_text and not current.endswith((" ", "\n")) and not new_text.startswith(" "):
+            separator = " "
+        return f"{current}{separator}{new_text}"
 
     def showEvent(self, event):
         super().showEvent(event)
