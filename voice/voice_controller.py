@@ -65,7 +65,16 @@ class VoiceController(QObject):
 
     @property
     def is_transcribing(self) -> bool:
-        return self._active_worker is not None
+        if self._active_worker is None:
+            return False
+        if self._active_worker.isRunning():
+            return True
+
+        # Defensive cleanup for stale worker references so UI does not get
+        # stuck in a "transcribing" state after merge/runtime edge cases.
+        self._active_worker.deleteLater()
+        self._active_worker = None
+        return False
 
     @property
     def selected_device_id(self) -> Optional[int]:
