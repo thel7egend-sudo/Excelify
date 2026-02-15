@@ -1,7 +1,15 @@
-from PySide6.QtWidgets import QTableView, QApplication
+from PySide6.QtWidgets import QTableView, QApplication, QStyledItemDelegate
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtCore import QItemSelectionModel
 from PySide6.QtGui import QPainter, QColor, QKeySequence, QPen
+from PySide6.QtWidgets import QStyle
+
+
+class _NoFocusSelectionDelegate(QStyledItemDelegate):
+    def paint(self, painter, option, index):
+        option.state &= ~QStyle.State_Selected
+        option.state &= ~QStyle.State_HasFocus
+        super().paint(painter, option, index)
 
 class TableView(QTableView):
     drag_swap_requested = Signal(object, object)
@@ -33,6 +41,8 @@ class TableView(QTableView):
         
         self._drag_start_index = None
         self.zoom_box = None
+        self.setItemDelegate(_NoFocusSelectionDelegate(self))
+
         self.setContextMenuPolicy(Qt.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
 
