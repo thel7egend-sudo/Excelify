@@ -1,28 +1,94 @@
+import json
 from threading import Lock
-from typing import Dict, Optional
+from typing import Dict
 
 import numpy as np
-from faster_whisper import WhisperModel
+from vosk import KaldiRecognizer, Model
 
 
-_MODEL_CACHE: Dict[str, WhisperModel] = {}
+_VOSK_MODEL_PATH = "models/vosk-model-small-en-us-0.15"
+_GRAMMAR_TOKENS = [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "f",
+    "g",
+    "h",
+    "i",
+    "j",
+    "k",
+    "l",
+    "m",
+    "n",
+    "o",
+    "p",
+    "q",
+    "r",
+    "s",
+    "t",
+    "u",
+    "v",
+    "w",
+    "x",
+    "y",
+    "z",
+    "zero",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+]
+_WORD_DIGIT_MAP = {
+    "zero": "0",
+    "one": "1",
+    "two": "2",
+    "three": "3",
+    "four": "4",
+    "five": "5",
+    "six": "6",
+    "seven": "7",
+    "eight": "8",
+    "nine": "9",
+}
+
+_MODEL_CACHE: Dict[str, Model] = {}
 _MODEL_LOCK = Lock()
-_ACCURACY_MODEL_NAME = "medium"
 
 
-def _get_model(model_name: str) -> WhisperModel:
+def _get_model(model_name: str) -> Model:
     with _MODEL_LOCK:
         model = _MODEL_CACHE.get(model_name)
         if model is None:
-            model = WhisperModel(model_name, device="cpu", compute_type="int8")
+            model = Model(_VOSK_MODEL_PATH)
             _MODEL_CACHE[model_name] = model
         return model
 
 
+def _normalize_text(text: str) -> str:
+    tokens = text.lower().split()
+    normalized = []
+
+    for token in tokens:
+        if token in _WORD_DIGIT_MAP:
+            normalized.append(_WORD_DIGIT_MAP[token])
+        elif len(token) == 1 and token.isalpha():
+            normalized.append(token)
+        elif len(token) == 1 and token.isdigit():
+            normalized.append(token)
+
+    return "".join(normalized)
+
+
 class WhisperTranscriber:
     def __init__(self, model_name: str = "base"):
-        # Force the transcription model to medium for better recognition accuracy.
-        self.model_name = _ACCURACY_MODEL_NAME
+        self.model_name = model_name
 
     def transcribe(self, audio: np.ndarray, samplerate: int) -> str:
         if audio.size == 0:
@@ -32,14 +98,16 @@ class WhisperTranscriber:
         if audio.dtype != np.float32:
             audio = audio.astype(np.float32)
 
+        audio = np.clip(audio, -1.0, 1.0)
+        audio_int16 = (audio * 32767).astype(np.int16)
+
         model = _get_model(self.model_name)
-        segments, _ = model.transcribe(
-            audio,
-            language="en",
-            task="transcribe",
-            beam_size=5,
-            temperature=0.0,
-            condition_on_previous_text=False,
-        )
-        parts = [segment.text for segment in segments]
-        return "".join(parts).strip()
+        recognizer = KaldiRecognizer(model, samplerate, json.dumps(_GRAMMAR_TOKENS))
+        recognizer.SetWords(False)
+        recognizer.AcceptWaveform(audio_int16.tobytes())
+
+        result_json = recognizer.FinalResult()
+        result_dict = json.loads(result_json)
+        text = result_dict.get("text", "")
+
+        return _normalize_text(text)
