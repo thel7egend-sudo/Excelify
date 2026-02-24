@@ -37,10 +37,9 @@ class WhisperTranscriber:
             audio,
             language="en",
             task="transcribe",
-            beam_size=7,
+            beam_size=5,
             temperature=0.0,
-            condition_on_previous_text=True,
-            vad_filter=True,
+            condition_on_previous_text=False,
         )
         parts = [segment.text for segment in segments]
         return "".join(parts).strip()
