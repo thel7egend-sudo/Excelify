@@ -5,8 +5,10 @@ from typing import Dict
 import numpy as np
 from vosk import KaldiRecognizer, Model
 
+import os
 
-_VOSK_MODEL_PATH = "models/vosk-model-small-en-us-0.15"
+_BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_VOSK_MODEL_PATH = os.path.join(_BASE_DIR, "models", "vosk-model-small-en-us-0.15")
 _GRAMMAR_TOKENS = [
     "a",
     "b",

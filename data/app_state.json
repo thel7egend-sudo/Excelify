@@ -6,10 +6,7 @@
       "sheets": [
         {
           "name": "Sheet1",
-          "cells": {
-            "1,0": "dsads sda s ",
-            "0,0": "\"Chilling\" refers either to relaxing leisurely (slang for chilling out/hanging out) or something causing great fear or terror. Common usage includes relaxing at home, while \"a c"
-          },
+          "cells": {},
           "row_heights": {},
           "col_widths": {
             "4": 265
@@ -23,44 +20,46 @@
             "11,23": "2",
             "10,22": "4",
             "10,18": "1",
-            "1,2": "Yeah That was a... chicken in the pan work.",
-            "1,3": "as well. I will see you in the next video. in the afternoon.",
-            "1,4": "I was thinking perhaps... And do some. singletop.",
-            "1,5": "Really man",
-            "2,5": "Well, it is... No. Working.",
-            "6,4": "i can ",
-            "8,4": "Thank you very much. Thank you. Oh How are you?",
+            "2,5": "Well, it is... No. Working. there was Oh, King.",
             "8,5": "1 2 3 4 5 6 7, 4, 2, 2, 3 three, nine, eight.",
             "9,5": "four five six two All right.",
             "10,5": "Well One, two, three, four.",
             "11,5": "I don't mean",
-            "6,3": "the transcription. better now automatically.",
+            "20,3": "today is a ",
             "8,3": "The cat, really? Miracle site.",
-            "26,4": "day ",
-            "27,4": "thursday ",
             "17,3": "day ",
             "18,3": "thursday ",
-            "29,3": "is ",
             "19,3": "after ",
-            "20,3": "today is a ",
-            "24,2": "f",
+            "29,3": "is ",
             "28,4": "after ",
+            "26,4": "day ",
             "29,4": "today is a ",
+            "27,4": "thursday ",
+            "8,4": "Thank you very much. Thank you. Oh How are you?",
+            "6,4": "i can ",
+            "2,3": "I was... Thank you. Three, two, one. and click play. Something",
+            "2,4": "Thanks for watching! once upon Uh, time.",
+            "9,2": "the",
             "20,2": "is ",
-            "9,2": "the"
+            "24,2": "f",
+            "1,3": "was a chicken on the road.",
+            "1,4": "I was thinking perhaps... And do some. singletop.",
+            "1,5": "Really man Thanks for watching! Really? Thank you. Thanks for watching!"
           },
           "row_heights": {
             "0": 74,
-            "1": 95,
+            "1": 100,
             "7": 93,
             "8": 93,
-            "9": 93
+            "9": 93,
+            "2": 95
           },
           "col_widths": {
             "3": 447,
             "2": 177,
             "1": 168,
-            "4": 333
+            "4": 333,
+            "5": 231
           }
         },
         {
