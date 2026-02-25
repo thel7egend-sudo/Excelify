@@ -1,6 +1,6 @@
 import json
 from threading import Lock
-from typing import Dict
+from typing import Dict, List
 
 import numpy as np
 from vosk import KaldiRecognizer, Model
@@ -12,30 +12,33 @@ _VOSK_MODEL_PATH = os.path.join(_BASE_DIR, "models", "vosk-model-small-en-us-0.1
 _GRAMMAR_TOKENS = [
     "a",
     "b",
-    "c",
-    "d",
-    "e",
     "f",
-    "g",
     "h",
     "i",
     "j",
-    "k",
     "l",
-    "m",
     "n",
     "o",
-    "p",
-    "q",
     "r",
     "s",
-    "t",
     "u",
-    "v",
     "w",
     "x",
     "y",
     "z",
+    "cha",
+    "delta",
+    "echo",
+    "gamma",
+    "pulse",
+    "false",
+    "plus",
+    "kilo",
+    "mike",
+    "truck",
+    "track",
+    "tuck",
+    "vector",
     "zero",
     "one",
     "two",
@@ -59,6 +62,40 @@ _WORD_DIGIT_MAP = {
     "eight": "8",
     "nine": "9",
 }
+_TOKEN_NORMALIZATION_MAP = {
+    "a": "a",
+    "b": "b",
+    "f": "f",
+    "h": "h",
+    "i": "i",
+    "j": "j",
+    "l": "l",
+    "n": "n",
+    "o": "o",
+    "r": "r",
+    "s": "s",
+    "u": "u",
+    "w": "w",
+    "x": "x",
+    "y": "y",
+    "z": "z",
+    "cha": "c",
+    "delta": "d",
+    "echo": "e",
+    "gamma": "g",
+    "pulse": "p",
+    "false": "p",
+    "plus": "p",
+    "kilo": "k",
+    "k": "j",
+    "mike": "m",
+    "m": "n",
+    "truck": "t",
+    "track": "t",
+    "tuck": "t",
+    "t": "t",
+    "vector": "v",
+}
 
 _MODEL_CACHE: Dict[str, Model] = {}
 _MODEL_LOCK = Lock()
@@ -80,12 +117,20 @@ def _normalize_text(text: str) -> str:
     for token in tokens:
         if token in _WORD_DIGIT_MAP:
             normalized.append(_WORD_DIGIT_MAP[token])
-        elif len(token) == 1 and token.isalpha():
-            normalized.append(token)
+        elif token in _TOKEN_NORMALIZATION_MAP:
+            normalized.append(_TOKEN_NORMALIZATION_MAP[token])
         elif len(token) == 1 and token.isdigit():
             normalized.append(token)
 
     return "".join(normalized)
+
+
+def _extract_text(result_json: str) -> str:
+    try:
+        result_dict = json.loads(result_json)
+    except json.JSONDecodeError:
+        return ""
+    return result_dict.get("text", "")
 
 
 class WhisperTranscriber:
@@ -106,10 +151,21 @@ class WhisperTranscriber:
         model = _get_model(self.model_name)
         recognizer = KaldiRecognizer(model, samplerate, json.dumps(_GRAMMAR_TOKENS))
         recognizer.SetWords(False)
-        recognizer.AcceptWaveform(audio_int16.tobytes())
+        step_samples = max(int(samplerate * 0.2), 1)
+        tokens: List[str] = []
 
-        result_json = recognizer.FinalResult()
-        result_dict = json.loads(result_json)
-        text = result_dict.get("text", "")
+        for start in range(0, audio_int16.shape[0], step_samples):
+            end = start + step_samples
+            chunk = audio_int16[start:end]
+            if chunk.size == 0:
+                continue
+            if recognizer.AcceptWaveform(chunk.tobytes()):
+                text = _extract_text(recognizer.Result())
+                if text:
+                    tokens.append(text)
 
-        return _normalize_text(text)
+        final_text = _extract_text(recognizer.FinalResult())
+        if final_text:
+            tokens.append(final_text)
+
+        return _normalize_text(" ".join(tokens))

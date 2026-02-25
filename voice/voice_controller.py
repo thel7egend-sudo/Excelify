@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from collections import deque
 from typing import Optional, Tuple
+import time
 
 import numpy as np
 from PySide6.QtCore import QObject, Signal, QThread, QTimer
@@ -57,13 +58,16 @@ class VoiceController(QObject):
         self._pending_jobs = deque()
         self._recording_target: Optional[TranscriptionTarget] = None
         self._chunk_timer = QTimer(self)
-        self._chunk_timer.setInterval(2200)
+        self._chunk_timer.setInterval(1000)
         self._chunk_timer.timeout.connect(self._flush_current_chunk)
         self._level_timer = QTimer(self)
         self._level_timer.setInterval(80)
         self._level_timer.timeout.connect(self._emit_level)
         self._recorder.set_level_callback(self._handle_level)
         self._latest_level = 0.0
+        self._silence_rms_threshold = 0.01
+        self._silence_flush_seconds = 0.24
+        self._silence_started_at: Optional[float] = None
 
     @property
     def is_recording(self) -> bool:
@@ -104,6 +108,7 @@ class VoiceController(QObject):
             return
         self._level_timer.start()
         self._chunk_timer.start()
+        self._silence_started_at = None
         self.recording_started.emit()
 
     def stop_recording(self, target: TranscriptionTarget, hint: Optional[str] = None) -> None:
@@ -114,6 +119,7 @@ class VoiceController(QObject):
         self._chunk_timer.stop()
         self._timeout_timer.stop()
         self._recorder.stop()
+        self._silence_started_at = None
         self.recording_stopped.emit()
         self._recording_target = None
         if hint:
@@ -180,6 +186,18 @@ class VoiceController(QObject):
 
     def _handle_level(self, level: float) -> None:
         self._latest_level = level
+        if not self.is_recording:
+            return
+        now = time.monotonic()
+        if level < self._silence_rms_threshold:
+            if self._silence_started_at is None:
+                self._silence_started_at = now
+                return
+            if now - self._silence_started_at >= self._silence_flush_seconds:
+                self.flush_recording_segment(self._recording_target)
+                self._silence_started_at = now
+        else:
+            self._silence_started_at = None
 
     def _emit_level(self) -> None:
         if not self.is_recording:
