@@ -89,6 +89,16 @@ class TableView(QTableView):
             self.zoom_box.selectAll()
 
     def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+            if not (self.zoom_box and self.zoom_box.hasFocus()):
+                current = self.currentIndex()
+                if current.isValid() and self.model() is not None:
+                    next_col = min(current.column() + 1, self.model().columnCount() - 1)
+                    next_index = self.model().index(current.row(), next_col)
+                    if next_index.isValid():
+                        self.setCurrentIndex(next_index)
+                return
+
         if event.matches(QKeySequence.Copy):
             self._copy_selection_to_clipboard(rect)
             return
