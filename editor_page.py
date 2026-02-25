@@ -128,6 +128,7 @@ class ZoomBoxEdit(QPlainTextEdit):
     commit_requested = Signal()
     move_requested = Signal(int, int)
     jump_next_row_requested = Signal()
+    jump_next_column_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -135,15 +136,50 @@ class ZoomBoxEdit(QPlainTextEdit):
         self.setContextMenuPolicy(Qt.NoContextMenu)
 
     def keyPressEvent(self, event):
+        if event.modifiers() & Qt.KeypadModifier:
+            keypad_digit_map = {
+                Qt.Key_0: "0",
+                Qt.Key_1: "1",
+                Qt.Key_2: "2",
+                Qt.Key_3: "3",
+                Qt.Key_4: "4",
+                Qt.Key_5: "5",
+                Qt.Key_6: "6",
+                Qt.Key_7: "7",
+                Qt.Key_8: "8",
+                Qt.Key_9: "9",
+                Qt.Key_Insert: "0",
+                Qt.Key_End: "1",
+                Qt.Key_Down: "2",
+                Qt.Key_PageDown: "3",
+                Qt.Key_Left: "4",
+                Qt.Key_Clear: "5",
+                Qt.Key_Right: "6",
+                Qt.Key_Home: "7",
+                Qt.Key_Up: "8",
+                Qt.Key_PageUp: "9",
+            }
+            digit = keypad_digit_map.get(event.key())
+            if digit and not (event.modifiers() & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)):
+                self.insertPlainText(digit)
+                return
+
         if event.key() in (Qt.Key_Return, Qt.Key_Enter):
             self.commit_requested.emit()
+            return
+
+        if event.key() == Qt.Key_Right and (event.modifiers() & Qt.ShiftModifier):
+            self.jump_next_column_requested.emit()
             return
 
         if event.key() == Qt.Key_Down and (event.modifiers() & Qt.ShiftModifier):
             self.jump_next_row_requested.emit()
             return
 
-        if event.key() in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down):
+        if (
+            event.key() in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down)
+            and not (event.modifiers() & Qt.KeypadModifier)
+        ):
             if event.key() == Qt.Key_Left:
                 self.move_requested.emit(0, -1)
             elif event.key() == Qt.Key_Right:
@@ -566,6 +602,7 @@ class EditorPage(QWidget):
         self.zoom_box.commit_requested.connect(self._commit_zoom_box)
         self.zoom_box.move_requested.connect(self._move_current_by)
         self.zoom_box.jump_next_row_requested.connect(self._jump_next_row)
+        self.zoom_box.jump_next_column_requested.connect(self._jump_next_column)
 
         self.zoom_box_host = QWidget()
         self.zoom_box_host.setObjectName("zoomBoxHost")
@@ -1039,6 +1076,15 @@ class EditorPage(QWidget):
         if not index.isValid():
             return
         self._set_current_index(index.row() + 1, 0)
+
+    def _jump_next_column(self):
+        if not self.zoom_box_host.isVisible():
+            return
+        self._push_zoom_text_to_model()
+        index = self._ensure_current_index()
+        if not index.isValid():
+            return
+        self._set_current_index(0, index.column() + 1)
 
     def _commit_zoom_box_segments(self, marker_positions):
         text = self.zoom_box.toPlainText()
