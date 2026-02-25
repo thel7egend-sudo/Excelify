@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QTableView, QApplication, QStyledItemDelegate, QAbstractItemView
+from PySide6.QtWidgets import QTableView, QApplication, QStyledItemDelegate, QAbstractItemView, QLineEdit
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtCore import QItemSelectionModel
 from PySide6.QtGui import QPainter, QColor, QKeySequence, QPen
@@ -83,10 +83,29 @@ class TableView(QTableView):
         super().mousePressEvent(event)
 
     def mouseDoubleClickEvent(self, event):
+        index = self.indexAt(event.pos())
+        click_pos = event.pos()
         super().mouseDoubleClickEvent(event)
+
+        if event.button() == Qt.LeftButton and index.isValid():
+            QTimer.singleShot(0, lambda i=index, p=click_pos: self._set_editor_cursor_from_click(i, p))
+
         if event.button() == Qt.LeftButton and self.zoom_box and self.zoom_box.isVisible():
             self.zoom_box.setFocus(Qt.MouseFocusReason)
             self.zoom_box.selectAll()
+
+    def _set_editor_cursor_from_click(self, index, click_pos):
+        if self.state() != QAbstractItemView.EditingState:
+            return
+
+        editor = QApplication.focusWidget()
+        if not isinstance(editor, QLineEdit):
+            return
+
+        global_pos = self.viewport().mapToGlobal(click_pos)
+        editor_pos = editor.mapFromGlobal(global_pos)
+        editor.setCursorPosition(editor.cursorPositionAt(editor_pos))
+        editor.deselect()
 
     def keyPressEvent(self, event):
         if event.key() in (Qt.Key_Return, Qt.Key_Enter):
