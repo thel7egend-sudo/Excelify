@@ -1,5 +1,5 @@
-from PySide6.QtWidgets import QTableView, QApplication, QStyledItemDelegate
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import QTableView, QApplication, QStyledItemDelegate, QAbstractItemView
+from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtCore import QItemSelectionModel
 from PySide6.QtGui import QPainter, QColor, QKeySequence, QPen
 from PySide6.QtWidgets import QStyle
@@ -91,12 +91,12 @@ class TableView(QTableView):
     def keyPressEvent(self, event):
         if event.key() in (Qt.Key_Return, Qt.Key_Enter):
             if not (self.zoom_box and self.zoom_box.hasFocus()):
-                current = self.currentIndex()
-                if current.isValid() and self.model() is not None:
-                    next_col = min(current.column() + 1, self.model().columnCount() - 1)
-                    next_index = self.model().index(current.row(), next_col)
-                    if next_index.isValid():
-                        self.setCurrentIndex(next_index)
+                if self.state() == QAbstractItemView.EditingState:
+                    super().keyPressEvent(event)
+                    QTimer.singleShot(0, self._move_current_index_right)
+                    return
+
+                self._move_current_index_right()
                 return
 
         if event.matches(QKeySequence.Copy):
@@ -338,6 +338,17 @@ class TableView(QTableView):
 
     def set_zoom_box(self, zoom_box):
         self.zoom_box = zoom_box
+
+    def _move_current_index_right(self):
+        current = self.currentIndex()
+        model = self.model()
+        if not current.isValid() or model is None:
+            return
+
+        next_col = min(current.column() + 1, model.columnCount() - 1)
+        next_index = model.index(current.row(), next_col)
+        if next_index.isValid():
+            self.setCurrentIndex(next_index)
 
     def _selected_rect(self):
         selection = self.selectionModel()
