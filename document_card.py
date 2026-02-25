@@ -104,6 +104,7 @@ class DocumentCard(QFrame):
             }
             QMenu::item:selected {
                 background-color: #dcdcdc;
+            }
         """)
 
         rename_action = menu.addAction("Rename")
