@@ -301,26 +301,32 @@ class TableView(QTableView):
         from PySide6.QtWidgets import QMenu
         menu = QMenu(self)
 
-        swap_action = menu.addAction("Swap Rectangle")
         copy_action = menu.addAction("Copy")
-        paste_action = menu.addAction("Paste")
         cut_action = menu.addAction("Cut")
+        paste_action = menu.addAction("Paste")
         delete_action = menu.addAction("Delete")
+        swap_action = menu.addAction("Swap Rectangle")
+        remove_spaces_action = menu.addAction("Remove Spaces")
+        uppercase_action = menu.addAction("Turn to Uppercase")
         target_rect = self._selected_rect()
         action = menu.exec(self.viewport().mapToGlobal(pos))
 
-        if action == swap_action:
+        if action == copy_action:
+            self._copy_selection_to_clipboard(target_rect)
+        elif action == cut_action:
+            self._invoke_action("_run_cut_action", "_cut_selection_to_clipboard", target_rect)
+        elif action == paste_action:
+            self._invoke_action("_run_paste_action", "_paste_clipboard_to_selection", target_rect)
+        elif action == delete_action:
+            self._invoke_action("_run_delete_action", "_delete_selection_contents", target_rect)
+        elif action == swap_action:
             parent = self.parent()
             if hasattr(parent, "arm_rectangle_swap"):
                 parent.arm_rectangle_swap()
-        elif action == copy_action:
-            self._copy_selection_to_clipboard(target_rect)
-        elif action == paste_action:
-            self._invoke_action("_run_paste_action", "_paste_clipboard_to_selection", target_rect)
-        elif action == cut_action:
-            self._invoke_action("_run_cut_action", "_cut_selection_to_clipboard", target_rect)
-        elif action == delete_action:
-            self._invoke_action("_run_delete_action", "_delete_selection_contents", target_rect)
+        elif action == remove_spaces_action:
+            self._invoke_action("_run_remove_spaces_action", "_remove_spaces_in_selection", target_rect)
+        elif action == uppercase_action:
+            self._invoke_action("_run_uppercase_action", "_uppercase_selection", target_rect)
     
 
     def _invoke_action(self, primary_name, fallback_name, *args, **kwargs):
@@ -461,6 +467,46 @@ class TableView(QTableView):
 
         self._clear_rect_contents(rect)
 
+    def _transform_selection_contents(self, transform, rect=None):
+        rect = rect or self._selected_rect()
+        if rect is None:
+            return
+
+        positions = self._selected_positions(rect)
+        if not positions:
+            return
+
+        model = self.model()
+        begin_macro = getattr(model, "begin_macro", None)
+        end_macro = getattr(model, "end_macro", None)
+        if callable(begin_macro):
+            begin_macro()
+        try:
+            for row, col in positions:
+                index = model.index(row, col)
+                if not index.isValid():
+                    continue
+
+                value = model.data(index, Qt.EditRole)
+                if value is None:
+                    value = model.data(index, Qt.DisplayRole)
+                if value is None or value == "":
+                    continue
+
+                source = value if isinstance(value, str) else str(value)
+                updated = transform(source)
+                if updated != source:
+                    model.setData(index, updated, Qt.EditRole)
+        finally:
+            if callable(end_macro):
+                end_macro()
+
+    def _remove_spaces_in_selection(self, rect=None):
+        self._transform_selection_contents(lambda value: value.replace(" ", ""), rect)
+
+    def _uppercase_selection(self, rect=None):
+        self._transform_selection_contents(lambda value: value.upper(), rect)
+
     def _run_paste_action(self, rect=None):
         handler = getattr(self, "_paste_clipboard_to_selection", None)
         if callable(handler):
@@ -473,5 +519,15 @@ class TableView(QTableView):
 
     def _run_delete_action(self, rect=None):
         handler = getattr(self, "_delete_selection_contents", None)
+        if callable(handler):
+            handler(rect)
+
+    def _run_remove_spaces_action(self, rect=None):
+        handler = getattr(self, "_remove_spaces_in_selection", None)
+        if callable(handler):
+            handler(rect)
+
+    def _run_uppercase_action(self, rect=None):
+        handler = getattr(self, "_uppercase_selection", None)
         if callable(handler):
             handler(rect)
