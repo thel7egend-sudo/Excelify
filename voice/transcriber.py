@@ -8,12 +8,12 @@ _MODEL_CACHE: Dict[str, WhisperModel] = {}
 _MODEL_LOCK = Lock()
 
 
-def _get_model(model_name: str) -> WhisperModel:
+def _get_model() -> WhisperModel:
     with _MODEL_LOCK:
-        model = _MODEL_CACHE.get(model_name)
+        model = _MODEL_CACHE.get("base")
         if model is None:
-            model = WhisperModel(model_name, device="cpu", compute_type="float32")
-            _MODEL_CACHE[model_name] = model
+            model = WhisperModel("base", device="cpu", compute_type="float32")
+            _MODEL_CACHE["base"] = model
         return model
 
 
@@ -30,7 +30,15 @@ class WhisperTranscriber:
         if audio.dtype != np.float32:
             audio = audio.astype(np.float32)
 
-        model = _get_model(self.model_name)
+        min_samples = max(int(samplerate * 0.8), 1)
+        if audio.shape[0] < min_samples:
+            return ""
+
+        rms = float(np.sqrt(np.mean(audio**2)))
+        if rms < 0.005:
+            return ""
+
+        model = _get_model()
         segments, _ = model.transcribe(
             audio,
             language="en",
