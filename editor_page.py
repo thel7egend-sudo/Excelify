@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import (
     QItemSelectionModel,
     Signal,
+    QTimer,
     Qt,
 )
 from PySide6.QtGui import QColor, QKeySequence, QPainter, QTextCursor, QShortcut
