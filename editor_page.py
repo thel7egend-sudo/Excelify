@@ -2,126 +2,25 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QHBoxLayout,
-    QLabel,
     QMenu,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QSizePolicy,
-    QToolButton,
-    QToolTip,
     QVBoxLayout,
     QWidget,
     QTableView,
 )
 from PySide6.QtCore import (
-    Property,
     QItemSelectionModel,
-    QPropertyAnimation,
-    QThread,
-    QEasingCurve,
     Signal,
     Qt,
-    QPoint,
-    QTimer,
 )
-from PySide6.QtGui import QColor, QFont, QPainter, QTextCursor, QPen
-from PySide6.QtWidgets import QStyle, QStyleOptionToolButton
+from PySide6.QtGui import QColor, QPainter, QTextCursor
 
 from models.table_model import TableModel
 from views.table_view import TableView
-from voice.voice_controller import VoiceController, TranscriptionTarget
 from document import Sheet
-
-
-class DictateToolButton(QToolButton):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._pulse_scale = 1.0
-
-    def _get_pulse_scale(self):
-        return self._pulse_scale
-
-    def _set_pulse_scale(self, value):
-        self._pulse_scale = value
-        self.update()
-
-    pulse_scale = Property(float, _get_pulse_scale, _set_pulse_scale)
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        center = self.rect().center()
-        painter.translate(center)
-        painter.scale(self._pulse_scale, self._pulse_scale)
-        painter.translate(-center)
-
-        option = QStyleOptionToolButton()
-        self.initStyleOption(option)
-        self.style().drawComplexControl(QStyle.CC_ToolButton, option, painter, self)
-
-
-
-
-class LoadingSpinner(QWidget):
-    def __init__(self, parent=None, diameter=14, line_count=12):
-        super().__init__(parent)
-        self._angle = 0
-        self._line_count = line_count
-        self._diameter = diameter
-        self.setFixedSize(diameter, diameter)
-        self._timer = QTimer(self)
-        self._timer.setInterval(70)
-        self._timer.timeout.connect(self._tick)
-        self.hide()
-
-    def start(self):
-        self.show()
-        if not self._timer.isActive():
-            self._timer.start()
-
-    def stop(self):
-        self._timer.stop()
-        self.hide()
-
-    def _tick(self):
-        self._angle = (self._angle + 1) % self._line_count
-        self.update()
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-
-        center = self.rect().center()
-        radius = min(self.width(), self.height()) / 2.0 - 1
-        line_length = radius * 0.45
-        line_width = max(2.0, radius * 0.16)
-
-        for i in range(self._line_count):
-            alpha = int(255 * ((i + 1) / self._line_count))
-            color = QColor(0, 0, 0, alpha)
-            pen = QPen(color)
-            pen.setWidthF(line_width)
-            pen.setCapStyle(Qt.RoundCap)
-            painter.setPen(pen)
-
-            painter.save()
-            painter.translate(center)
-            painter.rotate((360.0 / self._line_count) * ((i + self._angle) % self._line_count))
-            painter.drawLine(0, -radius + line_length, 0, -radius + 1)
-            painter.restore()
-
-
-class MicListWorker(QThread):
-    devices_ready = Signal(object)
-
-    def __init__(self, list_devices_callable, parent=None):
-        super().__init__(parent)
-        self._list_devices_callable = list_devices_callable
-
-    def run(self):
-        devices = self._list_devices_callable()
-        self.devices_ready.emit(devices)
 
 
 class ZoomBoxEdit(QPlainTextEdit):
@@ -330,74 +229,6 @@ class EditorPage(QWidget):
         ribbon_layout.addWidget(self.undo_btn)
         ribbon_layout.addWidget(self.redo_btn)
 
-        self.dictate_btn = DictateToolButton()
-        dictate_font = QFont("Segoe UI Emoji", self.dictate_btn.font().pointSize())
-        self.dictate_btn.setFont(dictate_font)
-        self.dictate_btn.setText("🎙️Dictate")
-        self.dictate_btn.setFixedHeight(36)
-        self.dictate_btn.setToolButtonStyle(Qt.ToolButtonTextOnly)
-        self.dictate_btn.setPopupMode(QToolButton.MenuButtonPopup)
-        self.dictate_btn.clicked.connect(self._toggle_dictate)
-
-        self.dictate_menu = QMenu(self.dictate_btn)
-        self.dictate_menu.aboutToShow.connect(self._populate_mic_menu)
-        self.dictate_btn.setMenu(self.dictate_menu)
-        self._mic_actions = []
-        self._mic_worker = None
-
-        self._dictate_pulse = QPropertyAnimation(self.dictate_btn, b"pulse_scale")
-        self._dictate_pulse.setStartValue(1.0)
-        self._dictate_pulse.setEndValue(1.12)
-        self._dictate_pulse.setDuration(700)
-        self._dictate_pulse.setEasingCurve(QEasingCurve.InOutSine)
-        self._dictate_pulse.setLoopCount(-1)
-
-        self._dictate_idle_style = (
-            "QToolButton {"
-            "margin: 0px;"
-            "padding: 4px 10px 4px 20px;"
-            "}"
-            "QToolButton::menu-button {"
-            "width: 18px;"
-            "subcontrol-origin: padding;"
-            "subcontrol-position: right center;"
-            "border-left: 1px solid rgba(120, 120, 120, 0.4);"
-            "}"
-        )
-        self._dictate_recording_style = (
-            "QToolButton {"
-            "margin: 0px;"
-            "padding: 4px 10px 4px 20px;"
-            "background-color: #d9534f;"
-            "color: white;"
-            "border-radius: 6px;"
-            "}"
-            "QToolButton::menu-button {"
-            "width: 18px;"
-            "subcontrol-origin: padding;"
-            "subcontrol-position: right center;"
-            "border-left: 1px solid rgba(255, 255, 255, 0.35);"
-            "}"
-        )
-        self.dictate_btn.setStyleSheet(self._dictate_idle_style)
-
-        ribbon_layout.addWidget(self.dictate_btn, 0, Qt.AlignVCenter)
-
-        self.dictate_transcribing_spinner = LoadingSpinner(self, diameter=14)
-        self.dictate_transcribing_spinner.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-        self.dictate_transcribing_label = QWidget(self)
-        transcribe_status_layout = QHBoxLayout(self.dictate_transcribing_label)
-        transcribe_status_layout.setContentsMargins(0, 0, 0, 0)
-        transcribe_status_layout.setSpacing(6)
-        self.dictate_transcribing_text = QLabel("Transcribing please wait.")
-        self.dictate_transcribing_text.setStyleSheet("QLabel { background: transparent; }")
-        transcribe_status_layout.addWidget(self.dictate_transcribing_spinner)
-        transcribe_status_layout.addWidget(self.dictate_transcribing_text)
-        self.dictate_transcribing_label.hide()
-
-        self.dictate_menu_spinner = LoadingSpinner(self, diameter=14)
-        self.dictate_menu_spinner.setAttribute(Qt.WA_TransparentForMouseEvents, True)
-
         # 🔹 Export button (RIGHT)
         self.export_btn = QPushButton("Export to Excel")
         self.export_btn.setFixedHeight(36)
@@ -428,170 +259,12 @@ class EditorPage(QWidget):
         self.view.verticalHeader().sectionResized.connect(self._on_row_resized)
         self.view.horizontalHeader().sectionResized.connect(self._on_col_resized)
         self._apply_sheet_sizes()
-
-        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
-        self.voice_controller.recording_started.connect(self._on_dictate_started)
-        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
-        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
-        self.voice_controller.transcription_error.connect(self._on_dictate_error)
-        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
-
-        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
-        self.voice_controller.recording_started.connect(self._on_dictate_started)
-        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
-        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
-        self.voice_controller.transcription_error.connect(self._on_dictate_error)
-        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
-        self.voice_controller.level_changed.connect(self._on_dictate_level)
-
-        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
-        self.voice_controller.recording_started.connect(self._on_dictate_started)
-        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
-        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
-        self.voice_controller.transcription_error.connect(self._on_dictate_error)
-        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
-        self.voice_controller.level_changed.connect(self._on_dictate_level)
-
-        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
-        self.voice_controller.recording_started.connect(self._on_dictate_started)
-        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
-        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
-        self.voice_controller.transcription_error.connect(self._on_dictate_error)
-        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
-        self.voice_controller.level_changed.connect(self._on_dictate_level)
-
-        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
-        self.voice_controller.recording_started.connect(self._on_dictate_started)
-        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
-        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
-        self.voice_controller.transcription_error.connect(self._on_dictate_error)
-        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
-        self.voice_controller.level_changed.connect(self._on_dictate_level)
-
-        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
-        self.voice_controller.recording_started.connect(self._on_dictate_started)
-        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
-        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
-        self.voice_controller.transcription_error.connect(self._on_dictate_error)
-        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
-        self.voice_controller.level_changed.connect(self._on_dictate_level)
-
-        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
-        self.voice_controller.recording_started.connect(self._on_dictate_started)
-        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
-        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
-        self.voice_controller.transcription_error.connect(self._on_dictate_error)
-        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
-        self.voice_controller.level_changed.connect(self._on_dictate_level)
-
-        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
-        self.voice_controller.recording_started.connect(self._on_dictate_started)
-        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
-        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
-        self.voice_controller.transcription_error.connect(self._on_dictate_error)
-        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
-        self.voice_controller.level_changed.connect(self._on_dictate_level)
-
-        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
-        self.voice_controller.recording_started.connect(self._on_dictate_started)
-        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
-        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
-        self.voice_controller.transcription_error.connect(self._on_dictate_error)
-        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
-        self.voice_controller.level_changed.connect(self._on_dictate_level)
-
-        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
-        self.voice_controller.recording_started.connect(self._on_dictate_started)
-        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
-        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
-        self.voice_controller.transcription_error.connect(self._on_dictate_error)
-        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
-        self.voice_controller.level_changed.connect(self._on_dictate_level)
-
-        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
-        self.voice_controller.recording_started.connect(self._on_dictate_started)
-        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
-        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
-        self.voice_controller.transcription_error.connect(self._on_dictate_error)
-        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
-        self.voice_controller.level_changed.connect(self._on_dictate_level)
-
-        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
-        self.voice_controller.recording_started.connect(self._on_dictate_started)
-        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
-        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
-        self.voice_controller.transcription_error.connect(self._on_dictate_error)
-        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
-        self.voice_controller.level_changed.connect(self._on_dictate_level)
-
-        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
-        self.voice_controller.recording_started.connect(self._on_dictate_started)
-        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
-        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
-        self.voice_controller.transcription_error.connect(self._on_dictate_error)
-        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
-        self.voice_controller.level_changed.connect(self._on_dictate_level)
-
-        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
-        self.voice_controller.recording_started.connect(self._on_dictate_started)
-        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
-        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
-        self.voice_controller.transcription_error.connect(self._on_dictate_error)
-        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
-        self.voice_controller.level_changed.connect(self._on_dictate_level)
-
-        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
-        self.voice_controller.recording_started.connect(self._on_dictate_started)
-        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
-        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
-        self.voice_controller.transcription_error.connect(self._on_dictate_error)
-        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
-        self.voice_controller.level_changed.connect(self._on_dictate_level)
-
-        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
-        self.voice_controller.recording_started.connect(self._on_dictate_started)
-        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
-        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
-        self.voice_controller.transcription_error.connect(self._on_dictate_error)
-        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
-        self.voice_controller.level_changed.connect(self._on_dictate_level)
-
-        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
-        self.voice_controller.recording_started.connect(self._on_dictate_started)
-        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
-        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
-        self.voice_controller.transcription_error.connect(self._on_dictate_error)
-        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
-        self.voice_controller.level_changed.connect(self._on_dictate_level)
-
-        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
-        self.voice_controller.recording_started.connect(self._on_dictate_started)
-        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
-        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
-        self.voice_controller.transcription_error.connect(self._on_dictate_error)
-        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
-        self.voice_controller.level_changed.connect(self._on_dictate_level)
-
-        self.voice_controller = VoiceController(max_duration_s=90, model_name="base")
-        self.voice_controller.recording_started.connect(self._on_dictate_started)
-        self.voice_controller.recording_stopped.connect(self._on_dictate_stopped)
-        self.voice_controller.transcription_ready.connect(self._on_dictate_transcription_ready)
-        self.voice_controller.transcription_error.connect(self._on_dictate_error)
-        self.voice_controller.hint_requested.connect(self._show_dictate_hint)
-        self.voice_controller.level_changed.connect(self._on_dictate_level)
-        self.voice_controller.transcription_idle.connect(self._on_dictate_transcription_idle)
-
         self._zoom_box_geometry = None
         self._zoom_box_ratio = (0.7, 0.1)
         self._zoom_syncing = False
         self._zoom_internal_edit = False
         self._saved_edit_triggers = self.view.editTriggers()
         self._enter_moves_right = True
-        self._dictate_level_ema = 0.0
-        self._dictate_noise_floor = 0.0
-        self._dictate_peak_level = 0.0
-        self._dictate_buffer_target = None
-        self._dictate_current_cell_buffer = ""
 
         self.zoom_box = ZoomBoxEdit(self)
         self.zoom_box.setObjectName("zoomBox")
@@ -703,7 +376,6 @@ class EditorPage(QWidget):
         self._deactivate_zoom_box()
         self._apply_sheet_sizes()
     def show_sheet_context_menu(self, index, button):
-        from PySide6.QtWidgets import QMenu, QInputDialog, QMessageBox
 
         menu = QMenu(self)
         rename_action = menu.addAction("Rename")
@@ -958,13 +630,6 @@ class EditorPage(QWidget):
         )
 
     def _on_current_changed(self, current, previous):
-        if self.voice_controller.is_recording:
-            previous_target = self._target_from_index(previous if previous.isValid() else current)
-            self._finalize_dictate_buffer(previous_target)
-            self._dictate_buffer_target = self._target_from_index(current)
-            self.voice_controller.flush_recording_segment(previous_target)
-            self.voice_controller.set_recording_target(self._dictate_buffer_target)
-
         if not self.zoom_box_host.isVisible():
             return
 
@@ -1256,255 +921,15 @@ class EditorPage(QWidget):
             self.undo_btn.setEnabled(can_undo)
         if hasattr(self, "redo_btn"):
             self.redo_btn.setEnabled(can_redo)
-
-    def _toggle_dictate(self):
-        if self.voice_controller.is_transcribing and not self.voice_controller.is_recording:
-            self._show_dictate_hint("Transcribing... please wait.")
-            return
-
-        index = self._ensure_current_index()
-        target = TranscriptionTarget(index.row(), index.column())
-
-        if self.voice_controller.is_recording:
-            self.voice_controller.stop_recording(target)
-            self._show_transcribing_status(True)
-        else:
-            self._dictate_buffer_target = target
-            self._dictate_current_cell_buffer = ""
-            self._show_transcribing_status(False)
-            self.voice_controller.start_recording(target)
-
-    def _populate_mic_menu(self):
-        if self._mic_worker is not None and self._mic_worker.isRunning():
-            return
-
-        self._show_dictate_menu_loading(True)
-        self.dictate_menu.clear()
-        loading_action = self.dictate_menu.addAction("Loading microphones...")
-        loading_action.setEnabled(False)
-
-        self._mic_worker = MicListWorker(self.voice_controller.list_devices, self)
-        self._mic_worker.devices_ready.connect(self._on_mic_devices_loaded)
-        self._mic_worker.finished.connect(self._on_mic_worker_finished)
-        self._mic_worker.start()
-
-    def _on_mic_devices_loaded(self, devices):
-        self.dictate_menu.clear()
-        self._mic_actions = []
-
-        default_action = self.dictate_menu.addAction("Default system mic")
-        default_action.setCheckable(True)
-        default_action.setData(None)
-        if self.voice_controller.selected_device_id is None:
-            default_action.setChecked(True)
-        default_action.triggered.connect(
-            lambda checked=False, action=default_action: self._select_microphone_action(None, action)
-        )
-        self._mic_actions.append(default_action)
-
-        if not devices:
-            no_mics = self.dictate_menu.addAction("No mics connected")
-            no_mics.setEnabled(False)
-        else:
-            for device in devices:
-                action = self.dictate_menu.addAction(device.name)
-                action.setCheckable(True)
-                action.setData(device.device_id)
-                if device.device_id == self.voice_controller.selected_device_id:
-                    action.setChecked(True)
-                action.triggered.connect(
-                    lambda checked=False, device_id=device.device_id, action=action: (
-                        self._select_microphone_action(device_id, action)
-                    )
-                )
-                self._mic_actions.append(action)
-
-        if self.voice_controller.is_recording:
-            for action in self.dictate_menu.actions():
-                action.setEnabled(False)
-
-        self._show_dictate_menu_loading(False)
-
-    def _on_mic_worker_finished(self):
-        if self._mic_worker is not None:
-            self._mic_worker.deleteLater()
-            self._mic_worker = None
-
-    def _select_microphone(self, device_id):
-        self.voice_controller.set_selected_device(device_id)
-
-    def _select_microphone_action(self, device_id, action):
-        self._select_microphone(device_id)
-        self._update_mic_checks(action)
-
-    def _update_mic_checks(self, selected_action):
-        for action in self._mic_actions:
-            action.setChecked(action is selected_action)
-
-    def _on_dictate_started(self):
-        self.dictate_btn.setText("⏺Dictate")
-        self.dictate_btn.setStyleSheet(self._dictate_recording_style)
-        self._dictate_pulse.stop()
-        self._dictate_level_ema = 0.0
-        self._dictate_noise_floor = 0.0
-        self._dictate_peak_level = 0.0
-
-    def _on_dictate_stopped(self):
-        self._dictate_pulse.stop()
-        self.dictate_btn.setStyleSheet(self._dictate_idle_style)
-        self.dictate_btn.setText("🎙️Dictate")
-        self.dictate_btn.pulse_scale = 1.0
-        self._dictate_level_ema = 0.0
-        self._dictate_noise_floor = 0.0
-        self._dictate_peak_level = 0.0
-
-    def _on_dictate_transcription_ready(self, text, target):
-        if not text:
-            return
-        if self._same_target(target, self._dictate_buffer_target):
-            self._dictate_current_cell_buffer = self._merge_dictate_text(
-                self._dictate_current_cell_buffer,
-                text,
-            )
-            return
-        self._append_text_to_cell(text, target)
-
-    def _on_dictate_error(self, message):
-        self._show_transcribing_status(False)
-        self._show_dictate_hint(f"Transcription failed: {message}")
-
-    def _on_dictate_transcription_idle(self):
-        if self.voice_controller.is_recording:
-            return
-        self._finalize_dictate_buffer(self._dictate_buffer_target)
-        self._dictate_buffer_target = None
-        self._show_transcribing_status(False)
-
-    def _show_transcribing_status(self, visible):
-        if visible:
-            self.dictate_transcribing_spinner.start()
-            self.dictate_transcribing_label.show()
-            self.dictate_transcribing_label.raise_()
-        else:
-            self.dictate_transcribing_spinner.stop()
-            self.dictate_transcribing_label.hide()
-        self._position_dictate_status_widgets()
-
-    def _show_dictate_menu_loading(self, visible):
-        if visible:
-            self.dictate_menu_spinner.start()
-            self.dictate_menu_spinner.raise_()
-            QApplication.processEvents()
-        else:
-            self.dictate_menu_spinner.stop()
-        self._position_dictate_status_widgets()
-
-    def _position_dictate_status_widgets(self):
-        if not hasattr(self, "dictate_btn"):
-            return
-
-        btn_top_left = self.dictate_btn.mapTo(self, QPoint(0, 0))
-        btn_rect = self.dictate_btn.geometry()
-        gap_y = btn_top_left.y() + btn_rect.height() + 6
-
-        if hasattr(self, "dictate_transcribing_label"):
-            self.dictate_transcribing_label.adjustSize()
-            trans_w = self.dictate_transcribing_label.width()
-            x = btn_top_left.x() + max(0, (btn_rect.width() - trans_w) // 2)
-            self.dictate_transcribing_label.move(x, gap_y)
-
-        if hasattr(self, "dictate_menu_spinner"):
-            spinner_x = btn_top_left.x() + btn_rect.width() - self.dictate_menu_spinner.width() - 2
-            spinner_y = btn_top_left.y() + btn_rect.height() + 6
-            self.dictate_menu_spinner.move(spinner_x, spinner_y)
-
-    def _show_dictate_hint(self, message):
-        rect = self.dictate_btn.rect()
-        pos = self.dictate_btn.mapToGlobal(
-            QPoint(rect.center().x(), rect.bottom() + 12)
-        )
-        QToolTip.showText(pos, message, self.dictate_btn)
-
-    def _on_dictate_level(self, level):
-        if not self.voice_controller.is_recording:
-            return
-
-        self._dictate_level_ema = (self._dictate_level_ema * 0.7) + (level * 0.3)
-
-        if self._dictate_noise_floor <= 0.0:
-            self._dictate_noise_floor = self._dictate_level_ema
-        else:
-            self._dictate_noise_floor = (
-                self._dictate_noise_floor * 0.97
-                + self._dictate_level_ema * 0.03
-            )
-
-        self._dictate_peak_level = max(
-            self._dictate_peak_level * 0.98,
-            self._dictate_level_ema,
-        )
-
-        dynamic_span = max(self._dictate_peak_level - self._dictate_noise_floor, 1e-6)
-        relative_level = (self._dictate_level_ema - self._dictate_noise_floor) / dynamic_span
-        is_voice_active = (
-            self._dictate_level_ema > 0.0012
-            and relative_level > 0.25
-        )
-
-        if is_voice_active:
-            if self._dictate_pulse.state() != QPropertyAnimation.Running:
-                self._dictate_pulse.start()
-        else:
-            if self._dictate_pulse.state() == QPropertyAnimation.Running:
-                self._dictate_pulse.stop()
-                self.dictate_btn.pulse_scale = 1.0
-
-    def _append_text_to_cell(self, text, target):
-        if not text:
-            return
-        index = self.model.index(target.row, target.column)
-        if not index.isValid():
-            return
-        current = self.model.data(index, Qt.EditRole) or ""
-        updated = self._merge_dictate_text(current, text)
-        self.model.setData(index, updated, Qt.EditRole)
-
-    def _finalize_dictate_buffer(self, target):
-        if target is None:
-            self._dictate_current_cell_buffer = ""
-            return
-        if not self._dictate_current_cell_buffer:
-            return
-        self._append_text_to_cell(self._dictate_current_cell_buffer, target)
-        self._dictate_current_cell_buffer = ""
-
-    def _target_from_index(self, index):
-        if index is not None and index.isValid():
-            return TranscriptionTarget(index.row(), index.column())
-        return TranscriptionTarget(0, 0)
-
-    def _same_target(self, left, right):
-        if left is None or right is None:
-            return False
-        return left.row == right.row and left.column == right.column
-
-    def _merge_dictate_text(self, current, new_text):
-        separator = ""
-        if current and new_text and not current.endswith((" ", "\n")) and not new_text.startswith(" "):
-            separator = " "
-        return f"{current}{separator}{new_text}"
-
     def showEvent(self, event):
         super().showEvent(event)
         if self.zoom_box_btn.isChecked():
             self._show_zoom_box()
-        self._position_dictate_status_widgets()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if self.zoom_box_host.isVisible():
             self._update_zoom_box_size_from_ratio()
-        self._position_dictate_status_widgets()
 
     def hideEvent(self, event):
         if self.zoom_box_host.isVisible():
