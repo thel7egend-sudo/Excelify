@@ -310,10 +310,6 @@ class EditorPage(QWidget):
         self.voice_controller.audio_level_changed.connect(self._on_audio_level_changed)
         self.voice_controller.error.connect(self._on_voice_error)
 
-        self._dictate_pulse_timer = QTimer(self)
-        self._dictate_pulse_timer.setInterval(80)
-        self._dictate_pulse_timer.timeout.connect(self._animate_dictate_button)
-
         self._dictate_enter_shortcut = QShortcut(QKeySequence(Qt.Key_Return), self)
         self._dictate_enter_shortcut.setContext(Qt.WidgetWithChildrenShortcut)
         self._dictate_enter_shortcut.activated.connect(self._handle_dictate_enter)
@@ -974,11 +970,11 @@ class EditorPage(QWidget):
         if recording:
             if self._dictate_base_size is None:
                 self._dictate_base_size = self.dictate_btn.size()
-            self._dictate_pulse_timer.start()
+            self.dictate_btn.setStyleSheet(
+                "QPushButton { border: 1px solid rgba(255, 90, 90, 180); border-radius: 8px; background-color: rgba(160, 20, 20, 65); }"
+            )
         else:
-            self._dictate_pulse_timer.stop()
             self._dictate_audio_level = 0.0
-            self._dictate_pulse_phase = 0.0
             if self._dictate_base_size is not None:
                 self.dictate_btn.setFixedSize(self._dictate_base_size)
             self.dictate_btn.setStyleSheet("")
@@ -989,32 +985,28 @@ class EditorPage(QWidget):
 
     def _on_audio_level_changed(self, level):
         self._dictate_audio_level = max(0.0, min(float(level), 1.0))
+        self._animate_dictate_button()
 
     def _animate_dictate_button(self):
-        if not self.voice_controller.is_recording:
+        if not self.voice_controller.is_recording or self._dictate_base_size is None:
             return
 
-        import math
+        silence_threshold = 0.01
+        if self._dictate_audio_level <= silence_threshold:
+            self.dictate_btn.setFixedSize(self._dictate_base_size)
+            self.dictate_btn.setStyleSheet(
+                "QPushButton { border: 1px solid rgba(255, 90, 90, 180); border-radius: 8px; background-color: rgba(160, 20, 20, 65); }"
+            )
+            return
 
-        self._dictate_pulse_phase += 0.45
-        wave = 0.5 + 0.5 * math.sin(self._dictate_pulse_phase)
-        pulse = 1.0 + 0.15 * wave
-        level = max(self._dictate_audio_level, 0.03)
-
-        if self._dictate_base_size is not None:
-            width = int(self._dictate_base_size.width() * pulse)
-            height = int(self._dictate_base_size.height() * pulse)
-            self.dictate_btn.setFixedSize(width, height)
-
-        glow_alpha = int(70 + min(level, 0.45) / 0.45 * 120)
+        normalized = min((self._dictate_audio_level - silence_threshold) / 0.2, 1.0)
+        scale = 1.0 + 0.15 * normalized
+        width = int(self._dictate_base_size.width() * scale)
+        height = int(self._dictate_base_size.height() * scale)
+        self.dictate_btn.setFixedSize(width, height)
+        glow_alpha = int(65 + 135 * normalized)
         self.dictate_btn.setStyleSheet(
-            f"""
-            QPushButton {{
-                border: 1px solid rgba(255, 90, 90, 180);
-                border-radius: 8px;
-                background-color: rgba(160, 20, 20, {glow_alpha});
-            }}
-            """
+            f"QPushButton {{ border: 1px solid rgba(255, 90, 90, 180); border-radius: 8px; background-color: rgba(160, 20, 20, {glow_alpha}); }}"
         )
 
     def _handle_dictate_enter(self):

@@ -18,7 +18,7 @@ class NumericRecognizer:
         self.model_path = str(model_path or _DEFAULT_MODEL_PATH)
         self.model = self._load_model(self.model_path)
         self.recognizer = KaldiRecognizer(self.model, self.sample_rate, DIGIT_GRAMMAR)
-        self._buffer = []
+        print(f"[Dictate] KaldiRecognizer initialized sr={self.sample_rate} grammar={DIGIT_GRAMMAR}")
 
     @staticmethod
     def _load_model(model_path):
@@ -33,24 +33,22 @@ class NumericRecognizer:
 
     def accept_audio(self, pcm_bytes):
         if not pcm_bytes:
-            return
+            return False, ""
 
         if self.recognizer.AcceptWaveform(pcm_bytes):
             parsed = json.loads(self.recognizer.Result() or "{}")
-            text = parsed.get("text", "")
-            self._buffer.append(self._to_digits(text))
+            text = self._to_digits(parsed.get("text", ""))
+            return True, text
+        return False, ""
 
     def finalize(self):
         parsed = json.loads(self.recognizer.FinalResult() or "{}")
-        text = parsed.get("text", "")
-        self._buffer.append(self._to_digits(text))
-        result = "".join(self._buffer)
-        self._buffer.clear()
-        return self._to_digits(result)
+        text = self._to_digits(parsed.get("text", ""))
+        print(f"[Dictate] FinalResult text='{text}'")
+        return text
 
     def reset(self):
         self.recognizer = KaldiRecognizer(self.model, self.sample_rate, DIGIT_GRAMMAR)
-        self._buffer.clear()
 
     @staticmethod
     def _to_digits(text):
@@ -59,29 +57,27 @@ class NumericRecognizer:
 
         pieces = text.strip().split()
         mapped = []
+        word_map = {
+            "zero": "0",
+            "oh": "0",
+            "one": "1",
+            "two": "2",
+            "to": "2",
+            "too": "2",
+            "three": "3",
+            "four": "4",
+            "for": "4",
+            "five": "5",
+            "six": "6",
+            "seven": "7",
+            "eight": "8",
+            "ate": "8",
+            "nine": "9",
+        }
         for piece in pieces:
             if piece.isdigit() and len(piece) == 1:
                 mapped.append(piece)
-                continue
+            else:
+                mapped.append(word_map.get(piece.lower(), piece))
 
-            word_map = {
-                "zero": "0",
-                "oh": "0",
-                "one": "1",
-                "two": "2",
-                "to": "2",
-                "too": "2",
-                "three": "3",
-                "four": "4",
-                "for": "4",
-                "five": "5",
-                "six": "6",
-                "seven": "7",
-                "eight": "8",
-                "ate": "8",
-                "nine": "9",
-            }
-            mapped.append(word_map.get(piece.lower(), piece))
-
-        flattened = "".join(mapped)
-        return DIGIT_ONLY_PATTERN.sub("", flattened)
+        return DIGIT_ONLY_PATTERN.sub("", "".join(mapped))
