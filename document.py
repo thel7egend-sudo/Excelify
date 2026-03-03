@@ -33,6 +33,8 @@ class Sheet:
 class Document:
     def __init__(self, name):
         self.name = name
+        self.type = "grid"
+        self.content = ""
         self.sheets = [Sheet("Sheet1")]
         self.active_sheet_index = 0
 
@@ -41,15 +43,23 @@ class Document:
         return self.sheets[self.active_sheet_index]
 
     def to_dict(self):
-        return {
+        data = {
             "name": self.name,
+            "type": self.type,
             "active_sheet_index": self.active_sheet_index,
             "sheets": [sheet.to_dict() for sheet in self.sheets],
         }
 
+        if self.type == "doc":
+            data["content"] = self.content
+
+        return data
+
     @staticmethod
     def from_dict(data):
         doc = Document(data["name"])
+        doc.type = data.get("type", "grid")
+        doc.content = data.get("content", "") if doc.type == "doc" else ""
         doc.sheets = [
             Sheet.from_dict(s) for s in data.get("sheets", [])
         ]
