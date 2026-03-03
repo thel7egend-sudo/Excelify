@@ -14,16 +14,13 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import (
     QItemSelectionModel,
     Signal,
-    QTimer,
     Qt,
 )
-from PySide6.QtGui import QColor, QKeySequence, QPainter, QTextCursor, QShortcut
+from PySide6.QtGui import QColor, QPainter, QTextCursor
 
 from models.table_model import TableModel
 from views.table_view import TableView
 from document import Sheet
-from voice import VoiceController
-import re
 
 
 class ZoomBoxEdit(QPlainTextEdit):
@@ -168,7 +165,6 @@ class ZoomBoxEdit(QPlainTextEdit):
 class EditorPage(QWidget):
     export_requested = Signal(object)  # document
     document_changed = Signal()
-    _NON_DIGIT_REGEX = re.compile(r"[^0-9]")
     
     def __init__(self, document):
         super().__init__()
@@ -177,11 +173,6 @@ class EditorPage(QWidget):
         self.sheet_buttons = []
         self.swap_mode = None
         self.model = TableModel(document)
-        self.voice_controller = VoiceController(self)
-        self._dictate_pending_target = None
-        self._dictate_audio_level = 0.0
-        self._dictate_pulse_phase = 0.0
-        self._dictate_base_size = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -225,12 +216,6 @@ class EditorPage(QWidget):
         self.zoom_box_btn.setFixedHeight(32)
         self.zoom_box_btn.toggled.connect(self._toggle_zoom_box)
         ribbon_layout.addWidget(self.zoom_box_btn)
-
-        self.dictate_btn = QPushButton("🎤 Dictate")
-        self.dictate_btn.setCheckable(True)
-        self.dictate_btn.setFixedHeight(36)
-        self.dictate_btn.toggled.connect(self._toggle_dictate)
-        ribbon_layout.addWidget(self.dictate_btn)
 
         ribbon_layout.addStretch()
 
@@ -304,21 +289,6 @@ class EditorPage(QWidget):
         zoom_host_layout.addWidget(self.enter_toggle)
         self.zoom_box_host.hide()
         self.view.set_zoom_box(self.zoom_box)
-
-        self.voice_controller.transcription_ready.connect(self._on_transcription_ready)
-        self.voice_controller.recording_state_changed.connect(self._on_recording_state_changed)
-        self.voice_controller.audio_level_changed.connect(self._on_audio_level_changed)
-        self.voice_controller.error.connect(self._on_voice_error)
-
-        self._dictate_enter_shortcut = QShortcut(QKeySequence(Qt.Key_Return), self)
-        self._dictate_enter_shortcut.setContext(Qt.WidgetWithChildrenShortcut)
-        self._dictate_enter_shortcut.activated.connect(self._handle_dictate_enter)
-        self._dictate_enter_shortcut.setEnabled(False)
-
-        self._dictate_numpad_enter_shortcut = QShortcut(QKeySequence(Qt.Key_Enter), self)
-        self._dictate_numpad_enter_shortcut.setContext(Qt.WidgetWithChildrenShortcut)
-        self._dictate_numpad_enter_shortcut.activated.connect(self._handle_dictate_enter)
-        self._dictate_numpad_enter_shortcut.setEnabled(False)
 
         sel = self.view.selectionModel()
         sel.currentChanged.connect(self._on_current_changed)
@@ -952,121 +922,6 @@ class EditorPage(QWidget):
         if hasattr(self, "redo_btn"):
             self.redo_btn.setEnabled(can_redo)
 
-    def _toggle_dictate(self, checked):
-        if checked:
-            target = self._current_cell_tuple()
-            if target is None or not self.voice_controller.start_recording(target):
-                self.dictate_btn.blockSignals(True)
-                self.dictate_btn.setChecked(False)
-                self.dictate_btn.blockSignals(False)
-                return
-            return
-
-        self.voice_controller.stop_recording()
-
-    def _on_recording_state_changed(self, recording):
-        self._dictate_enter_shortcut.setEnabled(recording)
-        self._dictate_numpad_enter_shortcut.setEnabled(recording)
-        if recording:
-            if self._dictate_base_size is None:
-                self._dictate_base_size = self.dictate_btn.size()
-            self.dictate_btn.setStyleSheet(
-                "QPushButton { border: 1px solid rgba(255, 90, 90, 180); border-radius: 8px; background-color: rgba(160, 20, 20, 65); }"
-            )
-        else:
-            self._dictate_audio_level = 0.0
-            if self._dictate_base_size is not None:
-                self.dictate_btn.setFixedSize(self._dictate_base_size)
-            self.dictate_btn.setStyleSheet("")
-            if self.dictate_btn.isChecked():
-                self.dictate_btn.blockSignals(True)
-                self.dictate_btn.setChecked(False)
-                self.dictate_btn.blockSignals(False)
-
-    def _on_audio_level_changed(self, level):
-        self._dictate_audio_level = max(0.0, min(float(level), 1.0))
-        self._animate_dictate_button()
-
-    def _animate_dictate_button(self):
-        if not self.voice_controller.is_recording or self._dictate_base_size is None:
-            return
-
-        silence_threshold = 0.01
-        if self._dictate_audio_level <= silence_threshold:
-            self.dictate_btn.setFixedSize(self._dictate_base_size)
-            self.dictate_btn.setStyleSheet(
-                "QPushButton { border: 1px solid rgba(255, 90, 90, 180); border-radius: 8px; background-color: rgba(160, 20, 20, 65); }"
-            )
-            return
-
-        normalized = min((self._dictate_audio_level - silence_threshold) / 0.2, 1.0)
-        scale = 1.0 + 0.15 * normalized
-        width = int(self._dictate_base_size.width() * scale)
-        height = int(self._dictate_base_size.height() * scale)
-        self.dictate_btn.setFixedSize(width, height)
-        glow_alpha = int(65 + 135 * normalized)
-        self.dictate_btn.setStyleSheet(
-            f"QPushButton {{ border: 1px solid rgba(255, 90, 90, 180); border-radius: 8px; background-color: rgba(160, 20, 20, {glow_alpha}); }}"
-        )
-
-    def _handle_dictate_enter(self):
-        if not self.voice_controller.is_recording:
-            return
-
-        next_target = None
-        current = self._ensure_current_index()
-        if current.isValid():
-            if self._enter_moves_right:
-                row, col = current.row(), current.column()
-                if col + 1 >= self.model.columnCount():
-                    if row + 1 < self.model.rowCount():
-                        next_target = (row + 1, 0)
-                    else:
-                        next_target = (row, col)
-                else:
-                    next_target = (row, col + 1)
-            else:
-                row, col = current.row(), current.column()
-                if row + 1 < self.model.rowCount():
-                    next_target = (row + 1, col)
-                else:
-                    next_target = (row, col)
-
-        self._dictate_pending_target = next_target
-        self.voice_controller.stop_recording()
-
-        if self._enter_moves_right:
-            self._advance_to_next_cell()
-        else:
-            self._advance_to_next_row()
-
-        target = self._dictate_pending_target or self._current_cell_tuple()
-        self._dictate_pending_target = None
-        if target is not None:
-            self.voice_controller.start_recording(target)
-
-    def _on_transcription_ready(self, text, target_cell):
-        if target_cell is None:
-            return
-        row, col = target_cell
-        index = self.model.index(row, col)
-        if not index.isValid():
-            return
-
-        digits = self._NON_DIGIT_REGEX.sub("", text or "")
-        self.model.setData(index, digits, Qt.EditRole)
-        current = self.view.currentIndex()
-        if current.isValid() and current.row() == row and current.column() == col:
-            self._sync_zoom_box_to_index(current)
-
-    def _on_voice_error(self, message):
-        QMessageBox.warning(self, "Dictate Error", message)
-
-    def _current_cell_tuple(self):
-        index = self._ensure_current_index()
-        if not index.isValid():
-            return None
-        return index.row(), index.column()
     def showEvent(self, event):
         super().showEvent(event)
         if self.zoom_box_btn.isChecked():
@@ -1078,8 +933,6 @@ class EditorPage(QWidget):
             self._update_zoom_box_size_from_ratio()
 
     def hideEvent(self, event):
-        if self.voice_controller.is_recording:
-            self.voice_controller.stop_recording()
         if self.zoom_box_host.isVisible():
             self._store_zoom_box_ratio()
             self.zoom_box_host.hide()
