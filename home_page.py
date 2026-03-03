@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QScrollArea, QGridLayout, QPushButton, QFrame, QGraphicsDropShadowEffect
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QScrollArea, QGridLayout, QPushButton, QFrame, QGraphicsDropShadowEffect, QDialog
 from document_card import DocumentCard
 from document import Document
 from PySide6.QtCore import Qt, Signal
@@ -101,20 +101,81 @@ class HomePage(QWidget):
         self.container_surface.setGraphicsEffect(effect)
 
     def create_document(self):
+        choice = self._show_new_document_type_dialog()
+        if not choice:
+            return
+
         doc = Document(f"Untitled {len(self.documents)+1}")
+        doc.type = choice
+        self._add_document_card(doc)
+        self.save_requested.emit()
+
+    def _show_new_document_type_dialog(self):
+        dialog = QDialog(self)
+        dialog.setWindowTitle("New Document")
+        dialog.setModal(True)
+        dialog.setFixedWidth(220)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(10)
+
+        spreadsheet_btn = QPushButton("Spreadsheet")
+        document_btn = QPushButton("Document")
+        spreadsheet_btn.setFixedHeight(36)
+        document_btn.setFixedHeight(36)
+
+        layout.addWidget(spreadsheet_btn, alignment=Qt.AlignCenter)
+        layout.addWidget(document_btn, alignment=Qt.AlignCenter)
+
+        selection = {"type": None}
+
+        def pick(doc_type):
+            selection["type"] = doc_type
+            dialog.accept()
+
+        spreadsheet_btn.clicked.connect(lambda: pick("grid"))
+        document_btn.clicked.connect(lambda: pick("doc"))
+
+        if self._dark_mode:
+            dialog.setStyleSheet("""
+                QDialog { background: #252525; }
+                QPushButton {
+                    background: #2e2e2e;
+                    color: #eaeaea;
+                    border: 1px solid rgba(255, 255, 255, 0.10);
+                    border-radius: 8px;
+                }
+                QPushButton:hover { background: #3a3a3a; }
+            """)
+        else:
+            dialog.setStyleSheet("""
+                QDialog { background: #ffffff; }
+                QPushButton {
+                    background: #ffffff;
+                    color: #111827;
+                    border: 1px solid #d1d5db;
+                    border-radius: 8px;
+                }
+                QPushButton:hover { background: #f9fafb; }
+            """)
+
+        dialog.exec()
+        return selection["type"]
+
+    def _add_document_card(self, doc):
         self.documents.append(doc)
 
         card = DocumentCard(doc)
         card.apply_dark_mode(self._dark_mode)
         card.clicked.connect(lambda d=doc: self.open_document_requested.emit(d))
         card.rename_requested.connect(self.sync_rename)
-        card.delete_requested.connect(self.request_delete)   # ✅ ADD THIS
+        card.delete_requested.connect(self.request_delete)
         self.cards[doc] = card
 
         row = len(self.documents) // 4
         col = len(self.documents) % 4
         self.grid.addWidget(card, row, col)
-        self.save_requested.emit()
 
     def sync_rename(self, document):
     # update the card text
