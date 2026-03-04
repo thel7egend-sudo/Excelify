@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QScrollArea, QGridLayout, QPushButton, QFrame, QGraphicsDropShadowEffect
 from document_card import DocumentCard
 from document import Document
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QMessageBox
 class HomePage(QWidget):
@@ -18,6 +18,7 @@ class HomePage(QWidget):
         self.chrome.search_selected.connect(self.open_document_by_name)
 
         self._dark_mode = False
+        self.current_mode = "grid"
 
 
         self.documents = []
@@ -35,6 +36,19 @@ class HomePage(QWidget):
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(16, 16, 16, 16)
         left_layout.setSpacing(8)
+
+        self.spreadsheets_btn = QPushButton("Spreadsheets")
+        self.spreadsheets_btn.setCheckable(True)
+        self.spreadsheets_btn.setFixedHeight(36)
+        self.spreadsheets_btn.clicked.connect(lambda: self.set_home_mode("grid"))
+
+        self.documents_btn = QPushButton("Documents")
+        self.documents_btn.setCheckable(True)
+        self.documents_btn.setFixedHeight(36)
+        self.documents_btn.clicked.connect(lambda: self.set_home_mode("doc"))
+
+        left_layout.addWidget(self.spreadsheets_btn)
+        left_layout.addWidget(self.documents_btn)
 
         # spacer pushes button to bottom
         left_layout.addStretch()
@@ -89,6 +103,7 @@ class HomePage(QWidget):
         layout.addWidget(left)
         layout.addWidget(scroll)
         self.apply_dark_mode(False)
+        self.set_home_mode("grid")
 
     def _apply_surface_shadow(self, enabled: bool):
         effect = QGraphicsDropShadowEffect(self.container_surface)
@@ -102,34 +117,80 @@ class HomePage(QWidget):
 
     def create_document(self):
         doc = Document(f"Untitled {len(self.documents)+1}")
+        doc.type = "doc" if self.current_mode == "doc" else "grid"
+        self._add_document_card(doc)
+        self.save_requested.emit()
+
+    def _add_document_card(self, doc):
         self.documents.append(doc)
 
         card = DocumentCard(doc)
         card.apply_dark_mode(self._dark_mode)
         card.clicked.connect(lambda d=doc: self.open_document_requested.emit(d))
         card.rename_requested.connect(self.sync_rename)
-        card.delete_requested.connect(self.request_delete)   # ✅ ADD THIS
+        card.delete_requested.connect(self.request_delete)
         self.cards[doc] = card
 
         row = len(self.documents) // 4
         col = len(self.documents) % 4
         self.grid.addWidget(card, row, col)
-        self.save_requested.emit()
+        self._refresh_document_grid()
+
+    def set_home_mode(self, mode: str):
+        if mode not in ("grid", "doc"):
+            mode = "grid"
+
+        self.current_mode = mode
+        self.spreadsheets_btn.setChecked(mode == "grid")
+        self.documents_btn.setChecked(mode == "doc")
+        self.import_btn.setVisible(mode == "grid")
+        self.on_search_text(self.chrome.search.text())
+        self._refresh_document_grid()
+
+    def _visible_documents(self):
+        return [
+            doc for doc in self.documents
+            if getattr(doc, "type", "grid") == self.current_mode
+        ]
+
+    def _refresh_document_grid(self):
+        for i in reversed(range(self.grid.count())):
+            item = self.grid.itemAt(i)
+            widget = item.widget()
+            if not widget:
+                continue
+            if widget is self.plus_btn:
+                continue
+            self.grid.removeWidget(widget)
+            widget.hide()
+
+        self.grid.addWidget(self.plus_btn, 0, 0)
+        self.plus_btn.show()
+
+        for i, doc in enumerate(self._visible_documents()):
+            index = i + 1
+            row = index // 4
+            col = index % 4
+            card = self.cards.get(doc)
+            if card:
+                self.grid.addWidget(card, row, col)
+                card.show()
 
     def sync_rename(self, document):
     # update the card text
         self.cards[document].update_name()
         self.save_requested.emit()
     def on_search_text(self, text):
-        self.chrome.update_search_results(self.documents, text)
+        self.chrome.update_search_results(self._visible_documents(), text)
 
 
     def on_search_enter(self):
-        if not self.documents:
+        visible_docs = self._visible_documents()
+        if not visible_docs:
             return
 
         text = self.chrome.search.text().lower()
-        for doc in self.documents:
+        for doc in visible_docs:
             if text in doc.name.lower():
                 self.open_document_requested.emit(doc)
                 self.chrome.search.clear()
@@ -138,7 +199,7 @@ class HomePage(QWidget):
 
 
     def open_document_by_name(self, name):
-        for doc in self.documents:
+        for doc in self._visible_documents():
             if doc.name == name:
                 self.open_document_requested.emit(doc)
                 break
@@ -151,10 +212,7 @@ class HomePage(QWidget):
 
         self.cards[doc] = card
 
-        index = len(self.documents)
-        row = index // 4
-        col = index % 4
-        self.grid.addWidget(card, row, col)
+        self._refresh_document_grid()
 
     def request_delete(self, document):
         reply = QMessageBox.question(
@@ -176,15 +234,7 @@ class HomePage(QWidget):
         self.grid.removeWidget(card)
         card.deleteLater()
 
-        # always put + button first
-        self.grid.addWidget(self.plus_btn, 0, 0)
-
-        # reflow documents AFTER the +
-        for i, doc in enumerate(self.documents):
-            index = i + 1  # offset because + occupies slot 0
-            row = index // 4
-            col = index % 4
-            self.grid.addWidget(self.cards[doc], row, col)
+        self._refresh_document_grid()
 
         self.save_requested.emit()
 

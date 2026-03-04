@@ -2,6 +2,7 @@ from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QFileDialog, QM
 from top_chrome import TopChrome
 from home_page import HomePage
 from editor_page import EditorPage
+from doc_editor_page import DocEditorPage
 from storage import save_state, load_state
 from document import Document
 from storage import save_state, load_state
@@ -55,18 +56,27 @@ class MainWindow(QMainWindow):
         self.home.show()
 
     def open_editor_for_document(self, document):
+        self.home.set_home_mode(getattr(document, "type", "grid"))
+
         if self.editor:
             self.container_layout.removeWidget(self.editor)
             self.editor.deleteLater()
 
-        self.editor = EditorPage(document)
+        if getattr(document, "type", "grid") == "grid":
+            self.editor = EditorPage(document)
+        else:
+            self.editor = DocEditorPage(document)
+
         # apply grid-only dark mode if enabled
         self.editor.apply_grid_dark_mode(self.is_grid_dark)
 
-        # ✅ CONNECT SAVE HERE (parent is now MainWindow)
-        self.editor.model.save_requested.connect(self.save_app_state)
-        self.editor.document_changed.connect(self.save_app_state)
-        self.editor.export_requested.connect(self.export_document_to_excel)
+        if isinstance(self.editor, EditorPage):
+            # ✅ CONNECT SAVE HERE (parent is now MainWindow)
+            self.editor.model.save_requested.connect(self.save_app_state)
+            self.editor.document_changed.connect(self.save_app_state)
+            self.editor.export_requested.connect(self.export_document_to_excel)
+        else:
+            self.editor.document_changed.connect(self.save_app_state)
 
         self.container_layout.addWidget(self.editor)
         self.home.hide()
@@ -304,4 +314,3 @@ class MainWindow(QMainWindow):
         """
 
         app.setStyleSheet(dark_qss)
-
