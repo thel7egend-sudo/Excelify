@@ -18,8 +18,13 @@ from PySide6.QtWidgets import (
 
 class PageTextEdit(QTextEdit):
     backspace_at_start = Signal()
+    return_pressed = Signal()
 
     def keyPressEvent(self, event: QKeyEvent):
+        if event.key() in (Qt.Key_Return, Qt.Key_Enter) and event.modifiers() == Qt.NoModifier:
+            self.return_pressed.emit()
+            return
+
         if (
             event.key() == Qt.Key_Backspace
             and not self.textCursor().hasSelection()
@@ -113,11 +118,14 @@ class WordStyleEditor(QWidget):
 
     def _create_page(self, text=""):
         page = PageWidget()
+        page.editor.document().setDocumentMargin(0)
         page.editor.setPlainText(text)
         page.editor.textChanged.connect(lambda p=page: self._on_page_text_changed(p))
         page.editor.backspace_at_start.connect(lambda p=page: self._merge_with_previous(p))
+        page.editor.return_pressed.connect(lambda p=page: self._handle_return_pressed(p))
         page.editor.selectionChanged.connect(lambda p=page: self._track_active_page(p))
         page.editor.cursorPositionChanged.connect(lambda p=page: self._track_active_page(p))
+        page.editor.verticalScrollBar().rangeChanged.connect(lambda *_args, e=page.editor: e.verticalScrollBar().setValue(0))
         return page
 
     def _append_page(self, text=""):
@@ -149,7 +157,61 @@ class WordStyleEditor(QWidget):
         probe.setDocumentMargin(0)
         probe.setTextWidth(self.usable_page_width)
         probe.setPlainText(text)
-        return probe.documentLayout().documentSize().height() <= self.usable_page_height
+        layout = probe.documentLayout()
+        block = probe.begin()
+        epsilon = 0.01
+        while block.isValid():
+            if layout.blockBoundingRect(block).bottom() > self.usable_page_height + epsilon:
+                return False
+            block = block.next()
+        return True
+
+    def _handle_return_pressed(self, page):
+        if self._is_reflowing or page not in self._pages:
+            return
+
+        editor = page.editor
+        cursor = editor.textCursor()
+        if cursor.hasSelection():
+            cursor.removeSelectedText()
+
+        idx = self._pages.index(page)
+        text = editor.toPlainText()
+        pos = cursor.position()
+        candidate = f"{text[:pos]}\n{text[pos:]}"
+
+        self._is_reflowing = True
+        if self._text_fits(candidate):
+            cursor.insertBlock()
+            editor.setTextCursor(cursor)
+            self._is_reflowing = False
+            self.textChanged.emit()
+            return
+
+        before = text[:pos]
+        after = text[pos:]
+
+        editor.blockSignals(True)
+        editor.setPlainText(before)
+        editor.blockSignals(False)
+
+        if idx + 1 >= len(self._pages):
+            self._append_page("")
+
+        next_editor = self._pages[idx + 1].editor
+        next_text = next_editor.toPlainText()
+        next_editor.blockSignals(True)
+        next_editor.setPlainText(f"\n{after}{next_text}")
+        next_editor.blockSignals(False)
+
+        self._rebalance_from(idx)
+        self._is_reflowing = False
+
+        next_cursor = next_editor.textCursor()
+        next_cursor.setPosition(1)
+        next_editor.setTextCursor(next_cursor)
+        next_editor.setFocus()
+        self.textChanged.emit()
 
     def _fitting_index(self, text):
         if not text:
@@ -291,6 +353,8 @@ class WordStyleEditor(QWidget):
         idx = self._pages.index(page)
         self._rebalance_from(idx)
         self._is_reflowing = False
+        for pg in self._pages:
+            pg.editor.verticalScrollBar().setValue(0)
         self.textChanged.emit()
 
     def toPlainText(self):
