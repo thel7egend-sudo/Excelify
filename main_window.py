@@ -56,6 +56,8 @@ class MainWindow(QMainWindow):
         self.home.show()
 
     def open_editor_for_document(self, document):
+        self.home.set_home_mode(getattr(document, "type", "grid"))
+
         if self.editor:
             self.container_layout.removeWidget(self.editor)
             self.editor.deleteLater()
