@@ -1,3 +1,4 @@
+import os
 from PySide6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QFileDialog, QMessageBox
 from top_chrome import TopChrome
 from home_page import HomePage
@@ -8,6 +9,7 @@ from document import Document
 from storage import save_state, load_state
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 from openpyxl import Workbook, load_workbook
+from docx import Document as DocxDocument
 from PySide6.QtGui import QPalette, QColor
 from PySide6.QtWidgets import QApplication
 
@@ -29,6 +31,7 @@ class MainWindow(QMainWindow):
 
         self.home = HomePage(self.chrome)
         self.home.open_import_requested.connect(self.import_excel)
+        self.home.open_doc_import_requested.connect(self.import_docs)
         self.home.toggle_dark_mode_requested.connect(self.toggle_dark_mode)
 
         self.home.open_document_requested.connect(self.open_editor_for_document)
@@ -77,6 +80,7 @@ class MainWindow(QMainWindow):
             self.editor.export_requested.connect(self.export_document_to_excel)
         else:
             self.editor.document_changed.connect(self.save_app_state)
+            self.editor.export_requested.connect(self.export_document_to_docs)
 
         self.container_layout.addWidget(self.editor)
         self.home.hide()
@@ -235,6 +239,50 @@ class MainWindow(QMainWindow):
         self.home.documents.append(document)
         self.home.add_existing_document(document)
         self.save_app_state()
+
+    def import_docs(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Import Document File",
+            "",
+            "Word Documents (*.docx)"
+        )
+
+        if not path:
+            return
+
+        if not path.lower().endswith(".docx"):
+            QMessageBox.warning(
+                self,
+                "Invalid File",
+                "Only .docx files are supported."
+            )
+            return
+
+        try:
+            docx = DocxDocument(path)
+            text = "\n".join(paragraph.text for paragraph in docx.paragraphs)
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Import Failed",
+                f"Could not open file:\n{e}"
+            )
+            return
+
+        doc_name = os.path.splitext(os.path.basename(path))[0]
+        document = Document(doc_name)
+        document.type = "doc"
+        document.content = text
+
+        self.home.documents.append(document)
+        self.home.add_existing_document(document)
+        self.save_app_state()
+
+    def export_document_to_docs(self, document):
+        if not isinstance(self.editor, DocEditorPage):
+            return
+        self.editor.export_to_docx()
 
     def toggle_dark_mode(self):
         self.is_grid_dark = not self.is_grid_dark

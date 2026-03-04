@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QMessageBox
 class HomePage(QWidget):
     open_document_requested = Signal(object)
     open_import_requested = Signal()
+    open_doc_import_requested = Signal()
     save_requested = Signal()
     toggle_dark_mode_requested = Signal()
 
@@ -143,7 +144,10 @@ class HomePage(QWidget):
         self.current_mode = mode
         self.spreadsheets_btn.setChecked(mode == "grid")
         self.documents_btn.setChecked(mode == "doc")
-        self.import_btn.setVisible(mode == "grid")
+        self.import_btn.setVisible(True)
+        self.import_btn.setText(
+            "Import from Excel" if mode == "grid" else "Import from Docs"
+        )
         self.on_search_text(self.chrome.search.text())
         self._refresh_document_grid()
 
@@ -239,6 +243,9 @@ class HomePage(QWidget):
         self.save_requested.emit()
 
     def request_import(self):
+        if self.current_mode == "doc":
+            self.open_doc_import_requested.emit()
+            return
         self.open_import_requested.emit()
 
     def apply_dark_mode(self, enabled: bool):
