@@ -24,6 +24,7 @@ class DocEditorPage(QWidget):
         self.document = document
         self.pages = []
         self.text_edits = []
+        self._page_texts = [self.document.content or ""]
         self._syncing_pages = False
 
         layout = QVBoxLayout(self)
@@ -107,11 +108,35 @@ class DocEditorPage(QWidget):
         if self._syncing_pages:
             return
 
-        full_text = "".join(edit.toPlainText() for edit in self.text_edits)
+        sender = self.sender()
+        sender_index = self.text_edits.index(sender) if sender in self.text_edits else None
+
+        full_text, global_cursor_pos = self._build_full_text_from_change(sender_index)
         page_texts = self._paginate_text(full_text)
-        self._set_page_texts(page_texts)
+        self._set_page_texts(page_texts, global_cursor_pos)
         self.document.content = "".join(page_texts)
         self.document_changed.emit()
+
+    def _build_full_text_from_change(self, sender_index):
+        if sender_index is None:
+            return "".join(edit.toPlainText() for edit in self.text_edits), None
+
+        old_page_texts = self._page_texts or ["" for _ in self.text_edits]
+        old_full_text = "".join(old_page_texts)
+
+        start_offset = sum(len(chunk) for chunk in old_page_texts[:sender_index])
+        old_chunk_length = len(old_page_texts[sender_index]) if sender_index < len(old_page_texts) else 0
+        new_chunk = self.text_edits[sender_index].toPlainText()
+
+        full_text = (
+            old_full_text[:start_offset]
+            + new_chunk
+            + old_full_text[start_offset + old_chunk_length :]
+        )
+
+        local_cursor = self.text_edits[sender_index].textCursor().position()
+        global_cursor_pos = start_offset + local_cursor
+        return full_text, global_cursor_pos
 
     def _paginate_text(self, text):
         if not text:
@@ -156,16 +181,43 @@ class DocEditorPage(QWidget):
 
         return pages or [""]
 
-    def _set_page_texts(self, page_texts):
+    def _set_page_texts(self, page_texts, global_cursor_pos=None):
         self._syncing_pages = True
         self._ensure_page_count(max(1, len(page_texts)))
+        self._page_texts = page_texts[:]
 
         for i, edit in enumerate(self.text_edits):
             text = page_texts[i] if i < len(page_texts) else ""
             with QSignalBlocker(edit):
                 edit.setPlainText(text)
 
+        if global_cursor_pos is not None and self.text_edits:
+            self._restore_cursor(global_cursor_pos)
+
         self._syncing_pages = False
+
+    def _restore_cursor(self, global_cursor_pos):
+        global_cursor_pos = max(0, min(global_cursor_pos, len("".join(self._page_texts))))
+
+        offset = 0
+        target_index = 0
+        local_pos = 0
+        for i, chunk in enumerate(self._page_texts):
+            next_offset = offset + len(chunk)
+            if global_cursor_pos <= next_offset:
+                target_index = i
+                local_pos = global_cursor_pos - offset
+                break
+            offset = next_offset
+        else:
+            target_index = len(self._page_texts) - 1
+            local_pos = len(self._page_texts[target_index])
+
+        target_edit = self.text_edits[target_index]
+        cursor = target_edit.textCursor()
+        cursor.setPosition(local_pos)
+        target_edit.setTextCursor(cursor)
+        target_edit.setFocus()
 
     def apply_grid_dark_mode(self, enabled: bool):
         if not enabled:
