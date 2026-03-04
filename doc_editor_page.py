@@ -1,43 +1,146 @@
 from docx import Document as DocxDocument
-from PySide6.QtCore import Qt, Signal, QSignalBlocker
-from PySide6.QtGui import QColor, QTextDocument
+from docx.shared import Inches
+from PySide6.QtCore import QTimer, Qt, QRectF, QSizeF, Signal
+from PySide6.QtGui import QColor, QPainter, QTextDocument
 from PySide6.QtWidgets import (
+    QFileDialog,
     QFrame,
-    QGraphicsDropShadowEffect,
     QHBoxLayout,
+    QMessageBox,
     QPushButton,
-    QScrollArea,
     QTextEdit,
     QVBoxLayout,
     QWidget,
-    QFileDialog,
-    QMessageBox,
 )
+
+
+class WordStyleEditor(QTextEdit):
+    PAGE_WIDTH = 800
+    PAGE_HEIGHT = 1100
+    PAGE_MARGIN = 56
+
+    BACKGROUND = QColor("#dfe1e5")
+    PAGE_COLOR = QColor("#ffffff")
+    PAGE_BORDER = QColor("#d8dde6")
+    SHADOW = QColor(0, 0, 0, 18)
+
+    def __init__(self, initial_text=""):
+        super().__init__()
+        self._page_count = 1
+        self._metrics_guard = False
+        self._last_viewport_margins = None
+
+        self._metrics_timer = QTimer(self)
+        self._metrics_timer.setSingleShot(True)
+        self._metrics_timer.timeout.connect(self._sync_metrics)
+
+        self.setFrameShape(QFrame.NoFrame)
+        self.setAcceptRichText(False)
+        self.setLineWrapMode(QTextEdit.FixedPixelWidth)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        self.document().setDocumentMargin(self.PAGE_MARGIN)
+
+        self.setPlainText(initial_text)
+
+        self.document().documentLayout().documentSizeChanged.connect(self._schedule_metrics_sync)
+        self.cursorPositionChanged.connect(self._keep_cursor_visible)
+        self._schedule_metrics_sync()
+
+    @property
+    def usable_page_width(self):
+        return self.PAGE_WIDTH - (self.PAGE_MARGIN * 2)
+
+    @property
+    def usable_page_height(self):
+        return self.PAGE_HEIGHT - (self.PAGE_MARGIN * 2)
+
+    @property
+    def _page_size(self):
+        return QSizeF(self.PAGE_WIDTH, self.PAGE_HEIGHT)
+
+    def _schedule_metrics_sync(self):
+        if not self._metrics_timer.isActive():
+            self._metrics_timer.start(0)
+
+    def _sync_metrics(self):
+        if self._metrics_guard:
+            return
+
+        self._metrics_guard = True
+        try:
+            try:
+                doc = self.document()
+            except RuntimeError:
+                return
+
+            if doc.pageSize() != self._page_size:
+                doc.setPageSize(self._page_size)
+
+            if self.lineWrapColumnOrWidth() != self.usable_page_width:
+                self.setLineWrapColumnOrWidth(self.usable_page_width)
+
+            self._page_count = max(1, doc.pageCount())
+            self.viewport().update()
+        except RuntimeError:
+            return
+        finally:
+            self._metrics_guard = False
+
+    def _update_viewport_margins(self):
+        content_width = self.width()
+        page_x = max(18, (content_width - self.PAGE_WIDTH) / 2)
+        side_pad = max(0, int(page_x))
+        top_pad = 24
+        bottom_pad = 24
+        margins = (side_pad, top_pad, side_pad, bottom_pad)
+        if margins != self._last_viewport_margins:
+            self._last_viewport_margins = margins
+            self.setViewportMargins(*margins)
+
+    def _keep_cursor_visible(self):
+        cursor_rect = self.cursorRect().adjusted(0, -28, 0, 28)
+        viewport_rect = self.viewport().rect()
+        bar = self.verticalScrollBar()
+
+        if cursor_rect.bottom() > viewport_rect.bottom():
+            bar.setValue(bar.value() + (cursor_rect.bottom() - viewport_rect.bottom()))
+        elif cursor_rect.top() < viewport_rect.top():
+            bar.setValue(bar.value() - (viewport_rect.top() - cursor_rect.top()))
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_viewport_margins()
+        self._schedule_metrics_sync()
+
+    def paintEvent(self, event):
+        painter = QPainter(self.viewport())
+        painter.fillRect(self.viewport().rect(), self.BACKGROUND)
+
+        content_width = self.width()
+        page_x = max(18, (content_width - self.PAGE_WIDTH) / 2)
+
+        for idx in range(self._page_count):
+            y = 24 + (idx * self.PAGE_HEIGHT)
+            shadow_rect = QRectF(page_x + 3, y + 4, self.PAGE_WIDTH, self.PAGE_HEIGHT)
+            page_rect = QRectF(page_x, y, self.PAGE_WIDTH, self.PAGE_HEIGHT)
+
+            painter.fillRect(shadow_rect, self.SHADOW)
+            painter.fillRect(page_rect, self.PAGE_COLOR)
+            painter.setPen(self.PAGE_BORDER)
+            painter.drawRect(page_rect)
+
+        super().paintEvent(event)
 
 
 class DocEditorPage(QWidget):
     document_changed = Signal()
     export_requested = Signal(object)
 
-    PAGE_WIDTH = 800
-    PAGE_HEIGHT = 1100
-    PAGE_MARGIN = 40
-
-    @property
-    def _usable_page_width(self):
-        return self.PAGE_WIDTH - (self.PAGE_MARGIN * 2)
-
-    @property
-    def _usable_page_height(self):
-        return self.PAGE_HEIGHT - (self.PAGE_MARGIN * 2)
-
     def __init__(self, document):
         super().__init__()
         self.document = document
-        self.pages = []
-        self.text_edits = []
-        self._page_texts = [self.document.content or ""]
-        self._syncing_pages = False
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -61,102 +164,25 @@ class DocEditorPage(QWidget):
         self.export_btn.clicked.connect(lambda: self.export_requested.emit(self.document))
         ribbon_layout.addWidget(self.export_btn)
 
-        self.scroll = QScrollArea()
-        self.scroll.setWidgetResizable(True)
-        self.scroll.setFrameShape(QFrame.NoFrame)
-        self.scroll.setObjectName("docScroll")
-
-        self.scroll_content = QWidget()
-        self.scroll_content.setObjectName("docScrollContent")
-        self.pages_layout = QVBoxLayout(self.scroll_content)
-        self.pages_layout.setContentsMargins(0, 28, 0, 28)
-        self.pages_layout.setSpacing(48)
-        self.pages_layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
-
-        self.scroll.setWidget(self.scroll_content)
+        self.editor = WordStyleEditor(self.document.content or "")
+        self.editor.textChanged.connect(self._on_text_changed)
 
         layout.addWidget(self.ribbon)
-        layout.addWidget(self.scroll)
+        layout.addWidget(self.editor)
 
-        self._set_page_texts(self._paginate_text(self.document.content))
         self.apply_grid_dark_mode(False)
 
-    def _create_page(self):
-        page = QWidget()
-        page.setObjectName("docPage")
-        page.setFixedSize(self.PAGE_WIDTH, self.PAGE_HEIGHT)
+    @property
+    def _usable_page_width(self):
+        return self.editor.usable_page_width
 
-        page_layout = QVBoxLayout(page)
-        page_layout.setContentsMargins(
-            self.PAGE_MARGIN,
-            self.PAGE_MARGIN,
-            self.PAGE_MARGIN,
-            self.PAGE_MARGIN,
-        )
+    @property
+    def _usable_page_height(self):
+        return self.editor.usable_page_height
 
-        text_edit = QTextEdit()
-        text_edit.setFrameShape(QFrame.NoFrame)
-        text_edit.setFixedSize(self._usable_page_width, self._usable_page_height)
-        text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        text_edit.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        text_edit.document().setDocumentMargin(0)
-        text_edit.textChanged.connect(self._on_any_page_text_changed)
-        page_layout.addWidget(text_edit)
-
-        shadow = QGraphicsDropShadowEffect(page)
-        shadow.setBlurRadius(24)
-        shadow.setOffset(0, 3)
-        shadow.setColor(QColor(0, 0, 0, 35))
-        page.setGraphicsEffect(shadow)
-
-        self.pages_layout.addWidget(page)
-        self.pages.append(page)
-        self.text_edits.append(text_edit)
-
-    def _ensure_page_count(self, count):
-        while len(self.text_edits) < count:
-            self._create_page()
-
-        while len(self.text_edits) > count:
-            edit = self.text_edits.pop()
-            page = self.pages.pop()
-            edit.deleteLater()
-            self.pages_layout.removeWidget(page)
-            page.deleteLater()
-
-    def _on_any_page_text_changed(self):
-        if self._syncing_pages:
-            return
-
-        sender = self.sender()
-        sender_index = self.text_edits.index(sender) if sender in self.text_edits else None
-
-        full_text, global_cursor_pos = self._build_full_text_from_change(sender_index)
-        page_texts = self._paginate_text(full_text)
-        self._set_page_texts(page_texts, global_cursor_pos)
-        self.document.content = "".join(page_texts)
+    def _on_text_changed(self):
+        self.document.content = self.editor.toPlainText()
         self.document_changed.emit()
-
-    def _build_full_text_from_change(self, sender_index):
-        if sender_index is None:
-            return "".join(edit.toPlainText() for edit in self.text_edits), None
-
-        old_page_texts = self._page_texts or ["" for _ in self.text_edits]
-        old_full_text = "".join(old_page_texts)
-
-        start_offset = sum(len(chunk) for chunk in old_page_texts[:sender_index])
-        old_chunk_length = len(old_page_texts[sender_index]) if sender_index < len(old_page_texts) else 0
-        new_chunk = self.text_edits[sender_index].toPlainText()
-
-        full_text = (
-            old_full_text[:start_offset]
-            + new_chunk
-            + old_full_text[start_offset + old_chunk_length :]
-        )
-
-        local_cursor = self.text_edits[sender_index].textCursor().position()
-        global_cursor_pos = start_offset + local_cursor
-        return full_text, global_cursor_pos
 
     def _paginate_text(self, text):
         if not text:
@@ -164,8 +190,7 @@ class DocEditorPage(QWidget):
 
         probe = QTextDocument()
         probe.setDocumentMargin(0)
-        if self.text_edits:
-            probe.setDefaultFont(self.text_edits[0].font())
+        probe.setDefaultFont(self.editor.font())
         probe.setTextWidth(self._usable_page_width)
         max_height = self._usable_page_height
         pages = []
@@ -203,54 +228,12 @@ class DocEditorPage(QWidget):
 
         return pages or [""]
 
-    def _set_page_texts(self, page_texts, global_cursor_pos=None):
-        self._syncing_pages = True
-        self._ensure_page_count(max(1, len(page_texts)))
-        self._page_texts = page_texts[:]
-
-        for i, edit in enumerate(self.text_edits):
-            text = page_texts[i] if i < len(page_texts) else ""
-            with QSignalBlocker(edit):
-                edit.setPlainText(text)
-
-        if global_cursor_pos is not None and self.text_edits:
-            self._restore_cursor(global_cursor_pos)
-
-        self._syncing_pages = False
-
-    def _restore_cursor(self, global_cursor_pos):
-        global_cursor_pos = max(0, min(global_cursor_pos, len("".join(self._page_texts))))
-
-        offset = 0
-        target_index = 0
-        local_pos = 0
-        for i, chunk in enumerate(self._page_texts):
-            next_offset = offset + len(chunk)
-            if global_cursor_pos <= next_offset:
-                target_index = i
-                local_pos = global_cursor_pos - offset
-                break
-            offset = next_offset
-        else:
-            target_index = len(self._page_texts) - 1
-            local_pos = len(self._page_texts[target_index])
-
-        target_edit = self.text_edits[target_index]
-        cursor = target_edit.textCursor()
-        cursor.setPosition(local_pos)
-        target_edit.setTextCursor(cursor)
-        target_edit.setFocus()
-        self.scroll.ensureWidgetVisible(target_edit)
-
-    def get_full_text(self):
-        return "\n".join(edit.toPlainText() for edit in self.text_edits)
-
     def export_to_docx(self):
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Export to Docs",
             f"{self.document.name}.docx",
-            "Word Documents (*.docx)"
+            "Word Documents (*.docx)",
         )
 
         if not path:
@@ -260,28 +243,37 @@ class DocEditorPage(QWidget):
             path = f"{path}.docx"
 
         try:
-            text = self.get_full_text()
+            text = self.editor.toPlainText()
+            page_chunks = self._paginate_text(text)
+
             doc = DocxDocument()
-            for paragraph in text.split("\n"):
-                doc.add_paragraph(paragraph)
+            section = doc.sections[0]
+            section.page_width = Inches(8.27)
+            section.page_height = Inches(11.69)
+            section.left_margin = Inches(0.7)
+            section.right_margin = Inches(0.7)
+            section.top_margin = Inches(0.7)
+            section.bottom_margin = Inches(0.7)
+
+            for page_index, chunk in enumerate(page_chunks):
+                paragraphs = chunk.split("\n")
+                for paragraph in paragraphs:
+                    doc.add_paragraph(paragraph)
+
+                if page_index < len(page_chunks) - 1:
+                    doc.add_page_break()
+
             doc.save(path)
         except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Export Failed",
-                f"Could not export file:\n{e}"
-            )
+            QMessageBox.critical(self, "Export Failed", f"Could not export file:\n{e}")
             return
 
-        QMessageBox.information(
-            self,
-            "Export Complete",
-            "Word document exported successfully."
-        )
+        QMessageBox.information(self, "Export Complete", "Word document exported successfully.")
 
     def apply_grid_dark_mode(self, enabled: bool):
         if not enabled:
-            self.setStyleSheet("""
+            self.setStyleSheet(
+                """
                 QWidget {
                     background: #f7f8fa;
                     color: #111827;
@@ -290,26 +282,18 @@ class DocEditorPage(QWidget):
                     background-color: #f9fafb;
                     border-bottom: 1px solid #e5e7eb;
                 }
-                QScrollArea#docScroll,
-                QWidget#docScrollContent {
+                QTextEdit {
                     background: #dfe1e5;
-                    border: none;
-                }
-                QWidget#docPage {
-                    background: #ffffff;
-                    border: 1px solid #e5e7eb;
-                    border-radius: 4px;
-                }
-                QWidget#docPage QTextEdit {
-                    background: #ffffff;
                     color: #111827;
                     border: none;
                     font-size: 14px;
                 }
-            """)
+            """
+            )
             return
 
-        self.setStyleSheet("""
+        self.setStyleSheet(
+            """
             QWidget {
                 background: #202124;
                 color: #eaeaea;
@@ -318,20 +302,11 @@ class DocEditorPage(QWidget):
                 background-color: #252525;
                 border-bottom: 1px solid rgba(255, 255, 255, 0.06);
             }
-            QScrollArea#docScroll,
-            QWidget#docScrollContent {
+            QTextEdit {
                 background: #1b1c1e;
-                border: none;
-            }
-            QWidget#docPage {
-                background: #2b2c2f;
-                border: 1px solid rgba(255, 255, 255, 0.10);
-                border-radius: 4px;
-            }
-            QWidget#docPage QTextEdit {
-                background: #2b2c2f;
                 color: #f3f4f6;
                 border: none;
                 font-size: 14px;
             }
-        """)
+        """
+        )
