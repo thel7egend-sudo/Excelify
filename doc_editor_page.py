@@ -1,3 +1,5 @@
+from math import ceil
+
 from docx import Document as DocxDocument
 from docx.shared import Inches
 from PySide6.QtCore import QTimer, Qt, QRectF, QSizeF, Signal
