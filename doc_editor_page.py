@@ -30,8 +30,11 @@ class WordStyleEditor(QTextEdit):
         super().__init__()
         self._page_count = 1
         self._metrics_guard = False
-        self._pending_sync = False
         self._last_viewport_margins = None
+
+        self._metrics_timer = QTimer(self)
+        self._metrics_timer.setSingleShot(True)
+        self._metrics_timer.timeout.connect(self._sync_metrics)
 
         self.setFrameShape(QFrame.NoFrame)
         self.setAcceptRichText(False)
@@ -60,32 +63,35 @@ class WordStyleEditor(QTextEdit):
         return QSizeF(self.PAGE_WIDTH, self.PAGE_HEIGHT)
 
     def _schedule_metrics_sync(self):
-        if self._pending_sync:
-            return
-        self._pending_sync = True
-        QTimer.singleShot(0, self._sync_metrics)
+        if not self._metrics_timer.isActive():
+            self._metrics_timer.start(0)
 
     def _sync_metrics(self):
         if self._metrics_guard:
             return
 
-        self._pending_sync = False
         self._metrics_guard = True
         try:
-            if self.document().pageSize() != self._page_size:
-                self.document().setPageSize(self._page_size)
+            try:
+                doc = self.document()
+            except RuntimeError:
+                return
+
+            if doc.pageSize() != self._page_size:
+                doc.setPageSize(self._page_size)
 
             if self.lineWrapColumnOrWidth() != self.usable_page_width:
                 self.setLineWrapColumnOrWidth(self.usable_page_width)
 
-            self._page_count = max(1, self.document().pageCount())
-            self._update_viewport_margins()
+            self._page_count = max(1, doc.pageCount())
             self.viewport().update()
+        except RuntimeError:
+            return
         finally:
             self._metrics_guard = False
 
     def _update_viewport_margins(self):
-        content_width = self.viewport().width()
+        content_width = self.width()
         page_x = max(18, (content_width - self.PAGE_WIDTH) / 2)
         side_pad = max(0, int(page_x))
         top_pad = 24
@@ -107,13 +113,14 @@ class WordStyleEditor(QTextEdit):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        self._update_viewport_margins()
         self._schedule_metrics_sync()
 
     def paintEvent(self, event):
         painter = QPainter(self.viewport())
         painter.fillRect(self.viewport().rect(), self.BACKGROUND)
 
-        content_width = self.viewport().width()
+        content_width = self.width()
         page_x = max(18, (content_width - self.PAGE_WIDTH) / 2)
 
         for idx in range(self._page_count):
