@@ -68,7 +68,7 @@ class WordStyleEditor(QTextEdit):
 
     @property
     def _page_step(self):
-        return self.PAGE_HEIGHT + self.PAGE_GAP
+        return self.PAGE_HEIGHT
 
     def _apply_page_frame_margins(self):
         frame = self.document().rootFrame()
@@ -149,6 +149,11 @@ class WordStyleEditor(QTextEdit):
             painter.fillRect(page_rect, self.PAGE_COLOR)
             painter.setPen(self.PAGE_BORDER)
             painter.drawRect(page_rect)
+
+            if idx > 0:
+                gap_top = y - self.PAGE_GAP
+                gap_rect = QRectF(page_x, gap_top, self.PAGE_WIDTH, self.PAGE_GAP)
+                painter.fillRect(gap_rect, self._workspace_color)
 
         super().paintEvent(event)
 
