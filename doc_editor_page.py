@@ -1,58 +1,64 @@
 from docx import Document as DocxDocument
 from docx.shared import Inches
-from PySide6.QtCore import QTimer, Qt, QRectF, QSizeF, Signal
-from PySide6.QtGui import QColor, QPainter, QTextDocument, QTextOption
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QKeyEvent, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
+    QGraphicsDropShadowEffect,
     QHBoxLayout,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
 
-class WordStyleEditor(QTextEdit):
+class PageTextEdit(QTextEdit):
+    backspace_at_start = Signal()
+
+    def keyPressEvent(self, event: QKeyEvent):
+        if (
+            event.key() == Qt.Key_Backspace
+            and not self.textCursor().hasSelection()
+            and self.textCursor().position() == 0
+        ):
+            self.backspace_at_start.emit()
+            return
+        super().keyPressEvent(event)
+
+
+class PageWidget(QFrame):
     PAGE_WIDTH = 800
     PAGE_HEIGHT = 1100
     PAGE_MARGIN = 56
 
-    PAGE_GAP = 48
-
-    LIGHT_WORKSPACE = QColor("#dfe1e5")
-    DARK_WORKSPACE = QColor("#13161c")
-    PAGE_COLOR = QColor("#ffffff")
-    PAGE_BORDER = QColor("#d8dde6")
-
-    def __init__(self, initial_text=""):
+    def __init__(self):
         super().__init__()
-        self._page_count = 1
-        self._metrics_guard = False
-        self._last_viewport_margins = None
-
-        self._metrics_timer = QTimer(self)
-        self._metrics_timer.setSingleShot(True)
-        self._metrics_timer.timeout.connect(self._sync_metrics)
-
-        self._workspace_color = self.LIGHT_WORKSPACE
-
+        self.setObjectName("docPage")
+        self.setFixedSize(self.PAGE_WIDTH, self.PAGE_HEIGHT)
         self.setFrameShape(QFrame.NoFrame)
-        self.setAcceptRichText(False)
-        self.setLineWrapMode(QTextEdit.FixedPixelWidth)
-        self.setWordWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)
-        self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
-        self.document().setDocumentMargin(0)
-        self._apply_page_frame_margins()
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(28)
+        shadow.setXOffset(0)
+        shadow.setYOffset(4)
+        shadow.setColor(QColor(0, 0, 0, 45))
+        self.setGraphicsEffect(shadow)
 
-        self.setPlainText(initial_text)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(self.PAGE_MARGIN, self.PAGE_MARGIN, self.PAGE_MARGIN, self.PAGE_MARGIN)
+        layout.setSpacing(0)
 
-        self.document().documentLayout().documentSizeChanged.connect(self._schedule_metrics_sync)
-        self.cursorPositionChanged.connect(self._keep_cursor_visible)
-        self._schedule_metrics_sync()
+        self.editor = PageTextEdit()
+        self.editor.setFrameShape(QFrame.NoFrame)
+        self.editor.setAcceptRichText(False)
+        self.editor.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.editor.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.editor.setLineWrapMode(QTextEdit.WidgetWidth)
+        layout.addWidget(self.editor)
 
     @property
     def usable_page_width(self):
@@ -62,114 +68,277 @@ class WordStyleEditor(QTextEdit):
     def usable_page_height(self):
         return self.PAGE_HEIGHT - (self.PAGE_MARGIN * 2)
 
-    @property
-    def _page_size(self):
-        return QSizeF(self.PAGE_WIDTH, self.PAGE_HEIGHT + self.PAGE_GAP)
+
+class WordStyleEditor(QWidget):
+    textChanged = Signal()
+
+    PAGE_GAP = 48
+    LIGHT_WORKSPACE = "#dfe1e5"
+    DARK_WORKSPACE = "#13161c"
+
+    def __init__(self, initial_text=""):
+        super().__init__()
+        self._is_reflowing = False
+        self._active_page_idx = 0
+        self._workspace_color = self.LIGHT_WORKSPACE
+        self._pages = []
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.scroll_area.setFrameShape(QFrame.NoFrame)
+
+        self.container = QWidget()
+        self.pages_layout = QVBoxLayout(self.container)
+        self.pages_layout.setContentsMargins(24, 24, 24, 24)
+        self.pages_layout.setSpacing(self.PAGE_GAP)
+        self.pages_layout.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
+
+        self.scroll_area.setWidget(self.container)
+        root.addWidget(self.scroll_area)
+
+        self._apply_theme(False)
+        self.setPlainText(initial_text)
 
     @property
-    def _page_step(self):
-        return self.PAGE_HEIGHT
+    def usable_page_width(self):
+        return PageWidget.PAGE_WIDTH - (PageWidget.PAGE_MARGIN * 2)
 
-    def _apply_page_frame_margins(self):
-        frame = self.document().rootFrame()
-        frame_format = frame.frameFormat()
-        frame_format.setLeftMargin(self.PAGE_MARGIN)
-        frame_format.setRightMargin(self.PAGE_MARGIN)
-        frame_format.setTopMargin(self.PAGE_MARGIN)
-        frame_format.setBottomMargin(self.PAGE_MARGIN + self.PAGE_GAP)
-        frame.setFrameFormat(frame_format)
+    @property
+    def usable_page_height(self):
+        return PageWidget.PAGE_HEIGHT - (PageWidget.PAGE_MARGIN * 2)
 
-    def _schedule_metrics_sync(self):
-        if not self._metrics_timer.isActive():
-            self._metrics_timer.start(0)
+    def _create_page(self, text=""):
+        page = PageWidget()
+        page.editor.setPlainText(text)
+        page.editor.textChanged.connect(lambda p=page: self._on_page_text_changed(p))
+        page.editor.backspace_at_start.connect(lambda p=page: self._merge_with_previous(p))
+        page.editor.selectionChanged.connect(lambda p=page: self._track_active_page(p))
+        page.editor.cursorPositionChanged.connect(lambda p=page: self._track_active_page(p))
+        return page
 
-    def _sync_metrics(self):
-        if self._metrics_guard:
+    def _append_page(self, text=""):
+        page = self._create_page(text)
+        self._pages.append(page)
+        self.pages_layout.addWidget(page)
+        return page
+
+    def _insert_page_after(self, idx, text=""):
+        page = self._create_page(text)
+        self._pages.insert(idx + 1, page)
+        self.pages_layout.insertWidget(idx + 1, page)
+        return page
+
+    def _remove_page(self, idx):
+        if len(self._pages) <= 1:
+            return
+        page = self._pages.pop(idx)
+        self.pages_layout.removeWidget(page)
+        page.deleteLater()
+
+    def _track_active_page(self, page):
+        if page in self._pages:
+            self._active_page_idx = self._pages.index(page)
+
+    def _text_fits(self, text):
+        probe = QTextDocument()
+        probe.setDefaultFont(self._pages[0].editor.font())
+        probe.setDocumentMargin(0)
+        probe.setTextWidth(self.usable_page_width)
+        probe.setPlainText(text)
+        return probe.documentLayout().documentSize().height() <= self.usable_page_height
+
+    def _fitting_index(self, text):
+        if not text:
+            return 0
+        low, high = 0, len(text)
+        fit = 0
+        while low <= high:
+            mid = (low + high) // 2
+            chunk = text[:mid]
+            if self._text_fits(chunk):
+                fit = mid
+                low = mid + 1
+            else:
+                high = mid - 1
+
+        split_at = fit
+        while 1 < split_at < len(text) and not text[split_at - 1].isspace() and text[split_at].isalnum():
+            split_at -= 1
+
+        return max(1, split_at)
+
+    def _rebalance_from(self, start_idx):
+        idx = max(0, start_idx)
+        while idx < len(self._pages):
+            current = self._pages[idx].editor
+            text = current.toPlainText()
+            if self._text_fits(text):
+                idx += 1
+                continue
+
+            split_at = self._fitting_index(text)
+            leading = text[:split_at]
+            trailing = text[split_at:]
+            old_pos = current.textCursor().position()
+
+            current.blockSignals(True)
+            current.setPlainText(leading)
+            current.blockSignals(False)
+
+            if idx + 1 >= len(self._pages):
+                self._append_page("")
+
+            next_editor = self._pages[idx + 1].editor
+            next_text = next_editor.toPlainText()
+            next_editor.blockSignals(True)
+            next_editor.setPlainText(trailing + next_text)
+            next_editor.blockSignals(False)
+
+            if old_pos > len(leading):
+                cursor = next_editor.textCursor()
+                cursor.setPosition(old_pos - len(leading))
+                next_editor.setTextCursor(cursor)
+                next_editor.setFocus()
+                self._active_page_idx = idx + 1
+            else:
+                cursor = current.textCursor()
+                cursor.setPosition(old_pos)
+                current.setTextCursor(cursor)
+
+        self._pull_text_up(max(0, start_idx - 1))
+
+    def _pull_text_up(self, start_idx):
+        idx = max(0, start_idx)
+        while idx < len(self._pages) - 1:
+            current = self._pages[idx].editor
+            nxt = self._pages[idx + 1].editor
+            current_text = current.toPlainText()
+            next_text = nxt.toPlainText()
+
+            if not next_text:
+                self._remove_page(idx + 1)
+                continue
+
+            if not self._text_fits(current_text + next_text[:1]):
+                idx += 1
+                continue
+
+            low, high, fit = 1, len(next_text), 0
+            while low <= high:
+                mid = (low + high) // 2
+                candidate = current_text + next_text[:mid]
+                if self._text_fits(candidate):
+                    fit = mid
+                    low = mid + 1
+                else:
+                    high = mid - 1
+
+            moved = next_text[:fit]
+            remainder = next_text[fit:]
+
+            current.blockSignals(True)
+            current.setPlainText(current_text + moved)
+            current.blockSignals(False)
+
+            nxt.blockSignals(True)
+            nxt.setPlainText(remainder)
+            nxt.blockSignals(False)
+
+            if not remainder:
+                self._remove_page(idx + 1)
+            else:
+                idx += 1
+
+    def _merge_with_previous(self, page):
+        if page not in self._pages:
+            return
+        idx = self._pages.index(page)
+        if idx == 0:
             return
 
-        self._metrics_guard = True
-        try:
-            try:
-                doc = self.document()
-            except RuntimeError:
-                return
+        prev_editor = self._pages[idx - 1].editor
+        this_editor = self._pages[idx].editor
 
-            self._apply_page_frame_margins()
+        prev_text = prev_editor.toPlainText()
+        this_text = this_editor.toPlainText()
 
-            if doc.pageSize() != self._page_size:
-                doc.setPageSize(self._page_size)
+        self._is_reflowing = True
+        prev_editor.blockSignals(True)
+        prev_editor.setPlainText(prev_text + this_text)
+        prev_editor.blockSignals(False)
+        self._remove_page(idx)
+        self._rebalance_from(idx - 1)
+        self._is_reflowing = False
 
-            if self.lineWrapColumnOrWidth() != self.usable_page_width:
-                self.setLineWrapColumnOrWidth(self.usable_page_width)
+        cursor = prev_editor.textCursor()
+        cursor.setPosition(len(prev_text))
+        prev_editor.setTextCursor(cursor)
+        prev_editor.setFocus()
 
-            self._page_count = max(1, doc.pageCount())
-            self._update_viewport_margins()
-            self.viewport().update()
-        except RuntimeError:
+        self.textChanged.emit()
+
+    def _on_page_text_changed(self, page):
+        if self._is_reflowing:
             return
-        finally:
-            self._metrics_guard = False
+        if page not in self._pages:
+            return
 
-    def _update_viewport_margins(self):
-        content_width = self.width()
-        page_x = max(18, (content_width - self.PAGE_WIDTH) / 2)
-        side_pad = max(0, int(page_x))
-        top_pad = self.PAGE_GAP
-        bottom_pad = self.PAGE_GAP
-        margins = (side_pad, top_pad, side_pad, bottom_pad)
-        if margins != self._last_viewport_margins:
-            self._last_viewport_margins = margins
-            self.setViewportMargins(*margins)
+        self._is_reflowing = True
+        idx = self._pages.index(page)
+        self._rebalance_from(idx)
+        self._is_reflowing = False
+        self.textChanged.emit()
 
-    def _keep_cursor_visible(self):
-        cursor_rect = self.cursorRect().adjusted(0, -28, 0, 28)
-        viewport_rect = self.viewport().rect()
-        bar = self.verticalScrollBar()
+    def toPlainText(self):
+        return "".join(page.editor.toPlainText() for page in self._pages)
 
-        if cursor_rect.bottom() > viewport_rect.bottom():
-            bar.setValue(bar.value() + (cursor_rect.bottom() - viewport_rect.bottom()))
-        elif cursor_rect.top() < viewport_rect.top():
-            bar.setValue(bar.value() - (viewport_rect.top() - cursor_rect.top()))
+    def setPlainText(self, text):
+        self._is_reflowing = True
+        for page in self._pages:
+            self.pages_layout.removeWidget(page)
+            page.deleteLater()
+        self._pages = []
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self._update_viewport_margins()
-        self._schedule_metrics_sync()
+        self._append_page(text or "")
+        self._rebalance_from(0)
+        self._is_reflowing = False
 
-    def paintEvent(self, event):
-        painter = QPainter(self.viewport())
-        painter.fillRect(self.viewport().rect(), self._workspace_color)
+        if self._pages:
+            self._pages[0].editor.moveCursor(QTextCursor.Start)
+            self._pages[0].editor.setFocus()
 
-        page_x = 0
+    def _apply_theme(self, enabled: bool):
+        workspace = self.DARK_WORKSPACE if enabled else self.LIGHT_WORKSPACE
+        page_text_color = "#eaeaea" if enabled else "#111827"
+        page_bg = "#1d1f24" if enabled else "#ffffff"
+        page_border = "rgba(255,255,255,0.05)" if enabled else "#d8dde6"
 
-        for idx in range(self._page_count):
-            y = idx * self._page_step
-            page_rect = QRectF(page_x, y, self.PAGE_WIDTH, self.PAGE_HEIGHT)
-
-            painter.fillRect(page_rect, self.PAGE_COLOR)
-            painter.setPen(self.PAGE_BORDER)
-            painter.drawRect(page_rect)
-
-            if idx > 0:
-                gap_top = y - self.PAGE_GAP
-                gap_rect = QRectF(page_x, gap_top, self.PAGE_WIDTH, self.PAGE_GAP)
-                painter.fillRect(gap_rect, self._workspace_color)
-
-        super().paintEvent(event)
-
-    def set_dark_mode(self, enabled: bool):
-        self._workspace_color = self.DARK_WORKSPACE if enabled else self.LIGHT_WORKSPACE
+        self.container.setStyleSheet(f"background: {workspace};")
         self.setStyleSheet(
             f"""
+            QScrollArea {{
+                background: {workspace};
+                border: none;
+            }}
+            QFrame#docPage {{
+                background: {page_bg};
+                border: 1px solid {page_border};
+            }}
             QTextEdit {{
                 background: transparent;
-                color: {'#eaeaea' if enabled else '#111827'};
+                color: {page_text_color};
                 border: none;
                 font-size: 14px;
             }}
             """
         )
-        self.viewport().update()
+
+    def set_dark_mode(self, enabled: bool):
+        self._apply_theme(enabled)
 
 
 class DocEditorPage(QWidget):
