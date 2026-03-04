@@ -1,3 +1,4 @@
+from docx import Document as DocxDocument
 from PySide6.QtCore import Qt, Signal, QSignalBlocker
 from PySide6.QtGui import QColor, QTextDocument
 from PySide6.QtWidgets import (
@@ -9,11 +10,14 @@ from PySide6.QtWidgets import (
     QTextEdit,
     QVBoxLayout,
     QWidget,
+    QFileDialog,
+    QMessageBox,
 )
 
 
 class DocEditorPage(QWidget):
     document_changed = Signal()
+    export_requested = Signal(object)
 
     PAGE_WIDTH = 800
     PAGE_HEIGHT = 1100
@@ -41,7 +45,13 @@ class DocEditorPage(QWidget):
         placeholder_btn.setEnabled(False)
         placeholder_btn.setFixedHeight(32)
         ribbon_layout.addWidget(placeholder_btn)
+
         ribbon_layout.addStretch()
+
+        self.export_btn = QPushButton("Export to Docs")
+        self.export_btn.setFixedHeight(36)
+        self.export_btn.clicked.connect(lambda: self.export_requested.emit(self.document))
+        ribbon_layout.addWidget(self.export_btn)
 
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
@@ -218,6 +228,43 @@ class DocEditorPage(QWidget):
         cursor.setPosition(local_pos)
         target_edit.setTextCursor(cursor)
         target_edit.setFocus()
+
+    def get_full_text(self):
+        return "\n".join(edit.toPlainText() for edit in self.text_edits)
+
+    def export_to_docx(self):
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export to Docs",
+            f"{self.document.name}.docx",
+            "Word Documents (*.docx)"
+        )
+
+        if not path:
+            return
+
+        if not path.lower().endswith(".docx"):
+            path = f"{path}.docx"
+
+        try:
+            text = self.get_full_text()
+            doc = DocxDocument()
+            for paragraph in text.split("\n"):
+                doc.add_paragraph(paragraph)
+            doc.save(path)
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Export Failed",
+                f"Could not export file:\n{e}"
+            )
+            return
+
+        QMessageBox.information(
+            self,
+            "Export Complete",
+            "Word document exported successfully."
+        )
 
     def apply_grid_dark_mode(self, enabled: bool):
         if not enabled:
