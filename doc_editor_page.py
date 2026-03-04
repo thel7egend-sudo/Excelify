@@ -19,7 +19,7 @@ class WordStyleEditor(QTextEdit):
     PAGE_HEIGHT = 1100
     PAGE_MARGIN = 56
 
-    PAGE_GAP = 28
+    PAGE_GAP = 48
 
     LIGHT_WORKSPACE = QColor("#dfe1e5")
     DARK_WORKSPACE = QColor("#13161c")
@@ -45,7 +45,8 @@ class WordStyleEditor(QTextEdit):
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
-        self.document().setDocumentMargin(self.PAGE_MARGIN)
+        self.document().setDocumentMargin(0)
+        self._apply_page_frame_margins()
 
         self.setPlainText(initial_text)
 
@@ -63,11 +64,20 @@ class WordStyleEditor(QTextEdit):
 
     @property
     def _page_size(self):
-        return QSizeF(self.PAGE_WIDTH, self.PAGE_HEIGHT)
+        return QSizeF(self.PAGE_WIDTH, self.PAGE_HEIGHT + self.PAGE_GAP)
 
     @property
     def _page_step(self):
         return self.PAGE_HEIGHT
+
+    def _apply_page_frame_margins(self):
+        frame = self.document().rootFrame()
+        frame_format = frame.frameFormat()
+        frame_format.setLeftMargin(self.PAGE_MARGIN)
+        frame_format.setRightMargin(self.PAGE_MARGIN)
+        frame_format.setTopMargin(self.PAGE_MARGIN)
+        frame_format.setBottomMargin(self.PAGE_MARGIN + self.PAGE_GAP)
+        frame.setFrameFormat(frame_format)
 
     def _schedule_metrics_sync(self):
         if not self._metrics_timer.isActive():
@@ -83,6 +93,8 @@ class WordStyleEditor(QTextEdit):
                 doc = self.document()
             except RuntimeError:
                 return
+
+            self._apply_page_frame_margins()
 
             if doc.pageSize() != self._page_size:
                 doc.setPageSize(self._page_size)
