@@ -53,10 +53,18 @@ class MainWindow(QMainWindow):
 
     def go_home(self):
         if self.editor:
-            self.editor.hide()
+            self.container_layout.removeWidget(self.editor)
+            self.editor.deleteLater()
+            self.editor = None
 
         self.chrome.show_home_mode()
         self.home.show()
+        self.home.updateGeometry()
+        if self.home.layout():
+            self.home.layout().activate()
+        self.container_layout.activate()
+        self.container.updateGeometry()
+        self.container.update()
 
     def open_editor_for_document(self, document):
         self.home.set_home_mode(getattr(document, "type", "grid"))
@@ -85,6 +93,8 @@ class MainWindow(QMainWindow):
         self.container_layout.addWidget(self.editor)
         self.home.hide()
         self.chrome.show_editor_mode()
+        self.container_layout.activate()
+        self.container.updateGeometry()
         # apply grid dark mode if enabled
 
     def save_app_state(self):
