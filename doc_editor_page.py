@@ -23,6 +23,14 @@ class DocEditorPage(QWidget):
     PAGE_HEIGHT = 1100
     PAGE_MARGIN = 40
 
+    @property
+    def _usable_page_width(self):
+        return self.PAGE_WIDTH - (self.PAGE_MARGIN * 2)
+
+    @property
+    def _usable_page_height(self):
+        return self.PAGE_HEIGHT - (self.PAGE_MARGIN * 2)
+
     def __init__(self, document):
         super().__init__()
         self.document = document
@@ -88,8 +96,10 @@ class DocEditorPage(QWidget):
 
         text_edit = QTextEdit()
         text_edit.setFrameShape(QFrame.NoFrame)
+        text_edit.setFixedSize(self._usable_page_width, self._usable_page_height)
         text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         text_edit.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        text_edit.document().setDocumentMargin(0)
         text_edit.textChanged.connect(self._on_any_page_text_changed)
         page_layout.addWidget(text_edit)
 
@@ -154,14 +164,16 @@ class DocEditorPage(QWidget):
 
         probe = QTextDocument()
         probe.setDocumentMargin(0)
-        probe.setTextWidth(self.PAGE_WIDTH - (self.PAGE_MARGIN * 2))
-        max_height = self.PAGE_HEIGHT - (self.PAGE_MARGIN * 2)
+        if self.text_edits:
+            probe.setDefaultFont(self.text_edits[0].font())
+        probe.setTextWidth(self._usable_page_width)
+        max_height = self._usable_page_height
         pages = []
         remaining = text
 
         while remaining:
             probe.setPlainText(remaining)
-            if probe.size().height() <= max_height:
+            if probe.documentLayout().documentSize().height() <= max_height:
                 pages.append(remaining)
                 break
 
@@ -173,7 +185,7 @@ class DocEditorPage(QWidget):
                 mid = (low + high) // 2
                 chunk = remaining[:mid]
                 probe.setPlainText(chunk)
-                if probe.size().height() <= max_height:
+                if probe.documentLayout().documentSize().height() <= max_height:
                     fit = mid
                     low = mid + 1
                 else:
@@ -228,6 +240,7 @@ class DocEditorPage(QWidget):
         cursor.setPosition(local_pos)
         target_edit.setTextCursor(cursor)
         target_edit.setFocus()
+        self.scroll.ensureWidgetVisible(target_edit)
 
     def get_full_text(self):
         return "\n".join(edit.toPlainText() for edit in self.text_edits)
