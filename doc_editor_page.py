@@ -3,7 +3,7 @@ from math import ceil
 from docx import Document as DocxDocument
 from docx.shared import Inches
 from PySide6.QtCore import QTimer, Qt, QRectF, QSizeF, Signal
-from PySide6.QtGui import QColor, QPainter, QTextDocument
+from PySide6.QtGui import QColor, QPainter, QTextDocument, QTextOption
 from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -21,10 +21,13 @@ class WordStyleEditor(QTextEdit):
     PAGE_HEIGHT = 1100
     PAGE_MARGIN = 56
 
-    BACKGROUND = QColor("#dfe1e5")
+    PAGE_GAP = 24
+
+    LIGHT_WORKSPACE = QColor("#dfe1e5")
+    DARK_WORKSPACE = QColor("#13161c")
     PAGE_COLOR = QColor("#ffffff")
     PAGE_BORDER = QColor("#d8dde6")
-    SHADOW = QColor(0, 0, 0, 18)
+    SHADOW = QColor(0, 0, 0, 22)
 
     def __init__(self, initial_text=""):
         super().__init__()
@@ -36,9 +39,12 @@ class WordStyleEditor(QTextEdit):
         self._metrics_timer.setSingleShot(True)
         self._metrics_timer.timeout.connect(self._sync_metrics)
 
+        self._workspace_color = self.LIGHT_WORKSPACE
+
         self.setFrameShape(QFrame.NoFrame)
         self.setAcceptRichText(False)
         self.setLineWrapMode(QTextEdit.FixedPixelWidth)
+        self.setWordWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
@@ -94,8 +100,8 @@ class WordStyleEditor(QTextEdit):
         content_width = self.width()
         page_x = max(18, (content_width - self.PAGE_WIDTH) / 2)
         side_pad = max(0, int(page_x))
-        top_pad = 24
-        bottom_pad = 24
+        top_pad = self.PAGE_GAP
+        bottom_pad = self.PAGE_GAP
         margins = (side_pad, top_pad, side_pad, bottom_pad)
         if margins != self._last_viewport_margins:
             self._last_viewport_margins = margins
@@ -118,13 +124,12 @@ class WordStyleEditor(QTextEdit):
 
     def paintEvent(self, event):
         painter = QPainter(self.viewport())
-        painter.fillRect(self.viewport().rect(), self.BACKGROUND)
+        painter.fillRect(self.viewport().rect(), self._workspace_color)
 
-        content_width = self.width()
-        page_x = max(18, (content_width - self.PAGE_WIDTH) / 2)
+        page_x = 0
 
         for idx in range(self._page_count):
-            y = 24 + (idx * self.PAGE_HEIGHT)
+            y = idx * self.PAGE_HEIGHT
             shadow_rect = QRectF(page_x + 3, y + 4, self.PAGE_WIDTH, self.PAGE_HEIGHT)
             page_rect = QRectF(page_x, y, self.PAGE_WIDTH, self.PAGE_HEIGHT)
 
@@ -134,6 +139,11 @@ class WordStyleEditor(QTextEdit):
             painter.drawRect(page_rect)
 
         super().paintEvent(event)
+
+    def set_dark_mode(self, enabled: bool):
+        self._workspace_color = self.DARK_WORKSPACE if enabled else self.LIGHT_WORKSPACE
+        self.setStyleSheet("QTextEdit { background: transparent; color: #111827; border: none; font-size: 14px; }")
+        self.viewport().update()
 
 
 class DocEditorPage(QWidget):
@@ -284,16 +294,12 @@ class DocEditorPage(QWidget):
                     background-color: #f9fafb;
                     border-bottom: 1px solid #e5e7eb;
                 }
-                QTextEdit {
-                    background: #dfe1e5;
-                    color: #111827;
-                    border: none;
-                    font-size: 14px;
-                }
             """
             )
+            self.editor.set_dark_mode(False)
             return
 
+        self.editor.set_dark_mode(True)
         self.setStyleSheet(
             """
             QWidget {
@@ -303,12 +309,6 @@ class DocEditorPage(QWidget):
             QWidget#docRibbon {
                 background-color: #252525;
                 border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-            }
-            QTextEdit {
-                background: #1b1c1e;
-                color: #f3f4f6;
-                border: none;
-                font-size: 14px;
             }
         """
         )
