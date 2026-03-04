@@ -120,30 +120,40 @@ class DocEditorPage(QWidget):
         probe = QTextDocument()
         probe.setDocumentMargin(0)
         probe.setTextWidth(self.PAGE_WIDTH - (self.PAGE_MARGIN * 2))
-
-        raw_lines = text.splitlines(keepends=True)
-        if not raw_lines:
-            raw_lines = [text]
-
-        pages = []
-        current = ""
         max_height = self.PAGE_HEIGHT - (self.PAGE_MARGIN * 2)
+        pages = []
+        remaining = text
 
-        for line in raw_lines:
-            candidate = current + line
-            probe.setPlainText(candidate)
+        while remaining:
+            probe.setPlainText(remaining)
             if probe.size().height() <= max_height:
-                current = candidate
-                continue
+                pages.append(remaining)
+                break
 
-            if current:
-                pages.append(current)
-                current = line
-            else:
-                pages.append(line)
-                current = ""
+            low = 1
+            high = len(remaining)
+            fit = 1
 
-        pages.append(current)
+            while low <= high:
+                mid = (low + high) // 2
+                chunk = remaining[:mid]
+                probe.setPlainText(chunk)
+                if probe.size().height() <= max_height:
+                    fit = mid
+                    low = mid + 1
+                else:
+                    high = mid - 1
+
+            split_at = fit
+            while split_at > 1 and not remaining[split_at - 1].isspace():
+                split_at -= 1
+
+            if split_at <= 1:
+                split_at = fit
+
+            pages.append(remaining[:split_at])
+            remaining = remaining[split_at:]
+
         return pages or [""]
 
     def _set_page_texts(self, page_texts):

@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QScrollArea, QGridLayout, QPushButton, QFrame, QGraphicsDropShadowEffect, QDialog
+from PySide6.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QScrollArea, QGridLayout, QPushButton, QFrame, QGraphicsDropShadowEffect
 from document_card import DocumentCard
 from document import Document
 from PySide6.QtCore import Signal
@@ -116,10 +116,6 @@ class HomePage(QWidget):
         self.container_surface.setGraphicsEffect(effect)
 
     def create_document(self):
-        choice = self._show_new_document_type_dialog()
-        if not choice:
-            return
-
         doc = Document(f"Untitled {len(self.documents)+1}")
         doc.type = "doc" if self.current_mode == "doc" else "grid"
         self._add_document_card(doc)
