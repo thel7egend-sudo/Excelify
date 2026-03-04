@@ -1,5 +1,3 @@
-from math import ceil
-
 from docx import Document as DocxDocument
 from docx.shared import Inches
 from PySide6.QtCore import QTimer, Qt, QRectF, QSizeF, Signal
@@ -21,13 +19,15 @@ class WordStyleEditor(QTextEdit):
     PAGE_HEIGHT = 1100
     PAGE_MARGIN = 56
 
-    PAGE_GAP = 24
+    PAGE_GAP = 28
+    PAGE_SHADOW_X = 0
+    PAGE_SHADOW_Y = 3
 
     LIGHT_WORKSPACE = QColor("#dfe1e5")
     DARK_WORKSPACE = QColor("#13161c")
     PAGE_COLOR = QColor("#ffffff")
     PAGE_BORDER = QColor("#d8dde6")
-    SHADOW = QColor(0, 0, 0, 22)
+    SHADOW = QColor(15, 23, 42, 24)
 
     def __init__(self, initial_text=""):
         super().__init__()
@@ -68,6 +68,10 @@ class WordStyleEditor(QTextEdit):
     def _page_size(self):
         return QSizeF(self.PAGE_WIDTH, self.PAGE_HEIGHT)
 
+    @property
+    def _page_step(self):
+        return self.PAGE_HEIGHT + self.PAGE_GAP
+
     def _schedule_metrics_sync(self):
         if not self._metrics_timer.isActive():
             self._metrics_timer.start(0)
@@ -90,6 +94,7 @@ class WordStyleEditor(QTextEdit):
                 self.setLineWrapColumnOrWidth(self.usable_page_width)
 
             self._page_count = max(1, doc.pageCount())
+            self._update_viewport_margins()
             self.viewport().update()
         except RuntimeError:
             return
@@ -101,7 +106,8 @@ class WordStyleEditor(QTextEdit):
         page_x = max(18, (content_width - self.PAGE_WIDTH) / 2)
         side_pad = max(0, int(page_x))
         top_pad = self.PAGE_GAP
-        bottom_pad = self.PAGE_GAP
+        extra_page_spacing = max(0, self._page_count - 1) * self.PAGE_GAP
+        bottom_pad = self.PAGE_GAP + extra_page_spacing
         margins = (side_pad, top_pad, side_pad, bottom_pad)
         if margins != self._last_viewport_margins:
             self._last_viewport_margins = margins
@@ -129,8 +135,13 @@ class WordStyleEditor(QTextEdit):
         page_x = 0
 
         for idx in range(self._page_count):
-            y = idx * self.PAGE_HEIGHT
-            shadow_rect = QRectF(page_x + 3, y + 4, self.PAGE_WIDTH, self.PAGE_HEIGHT)
+            y = idx * self._page_step
+            shadow_rect = QRectF(
+                page_x + self.PAGE_SHADOW_X,
+                y + self.PAGE_SHADOW_Y,
+                self.PAGE_WIDTH,
+                self.PAGE_HEIGHT,
+            )
             page_rect = QRectF(page_x, y, self.PAGE_WIDTH, self.PAGE_HEIGHT)
 
             painter.fillRect(shadow_rect, self.SHADOW)
@@ -142,7 +153,46 @@ class WordStyleEditor(QTextEdit):
 
     def set_dark_mode(self, enabled: bool):
         self._workspace_color = self.DARK_WORKSPACE if enabled else self.LIGHT_WORKSPACE
-        self.setStyleSheet("QTextEdit { background: transparent; color: #111827; border: none; font-size: 14px; }")
+        scrollbar_track = "#202124" if enabled else "#f3f4f6"
+        scrollbar_thumb = "#2e2e2e" if enabled else "#d1d5db"
+        scrollbar_thumb_hover = "#3a3a3a" if enabled else "#9ca3af"
+
+        self.setStyleSheet(
+            f"""
+            QTextEdit {{
+                background: transparent;
+                color: #111827;
+                border: none;
+                font-size: 14px;
+            }}
+            QScrollBar:vertical, QScrollBar:horizontal {{
+                background: {scrollbar_track};
+                height: 10px;
+                width: 10px;
+                margin: 0px;
+            }}
+            QScrollBar::handle:vertical, QScrollBar::handle:horizontal {{
+                background: {scrollbar_thumb};
+                min-height: 24px;
+                min-width: 24px;
+                border-radius: 4px;
+            }}
+            QScrollBar::handle:vertical:hover, QScrollBar::handle:horizontal:hover {{
+                background: {scrollbar_thumb_hover};
+            }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical,
+            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{
+                background: {scrollbar_track};
+            }}
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical,
+            QScrollBar::add-line:horizontal,
+            QScrollBar::sub-line:horizontal {{
+                height: 0px;
+                width: 0px;
+            }}
+            """
+        )
         self.viewport().update()
 
 
