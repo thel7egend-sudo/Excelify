@@ -2,7 +2,7 @@ from math import ceil
 
 from docx import Document as DocxDocument
 from docx.shared import Inches
-from PySide6.QtCore import Qt, QRectF, QSizeF, Signal
+from PySide6.QtCore import QTimer, Qt, QRectF, QSizeF, Signal
 from PySide6.QtGui import QColor, QPainter, QTextDocument
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -29,22 +29,23 @@ class WordStyleEditor(QTextEdit):
     def __init__(self, initial_text=""):
         super().__init__()
         self._page_count = 1
+        self._metrics_guard = False
+        self._pending_sync = False
+        self._last_viewport_margins = None
 
         self.setFrameShape(QFrame.NoFrame)
         self.setAcceptRichText(False)
         self.setLineWrapMode(QTextEdit.FixedPixelWidth)
-        self.setLineWrapColumnOrWidth(self.usable_page_width)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
-        self.document().setDocumentMargin(0)
-        self.document().setPageSize(self._page_size)
+        self.document().setDocumentMargin(self.PAGE_MARGIN)
 
         self.setPlainText(initial_text)
 
-        self.document().documentLayout().documentSizeChanged.connect(self._sync_metrics)
+        self.document().documentLayout().documentSizeChanged.connect(self._schedule_metrics_sync)
         self.cursorPositionChanged.connect(self._keep_cursor_visible)
-        self._sync_metrics()
+        self._schedule_metrics_sync()
 
     @property
     def usable_page_width(self):
@@ -56,31 +57,57 @@ class WordStyleEditor(QTextEdit):
 
     @property
     def _page_size(self):
-        return QSizeF(self.usable_page_width, self.usable_page_height)
+        return QSizeF(self.PAGE_WIDTH, self.PAGE_HEIGHT)
+
+    def _schedule_metrics_sync(self):
+        if self._pending_sync:
+            return
+        self._pending_sync = True
+        QTimer.singleShot(0, self._sync_metrics)
 
     def _sync_metrics(self):
-        self.document().setPageSize(self._page_size)
-        self.setLineWrapColumnOrWidth(self.usable_page_width)
+        if self._metrics_guard:
+            return
 
-        text_height = self.document().documentLayout().documentSize().height()
-        self._page_count = max(1, ceil(text_height / self.usable_page_height))
+        self._pending_sync = False
+        self._metrics_guard = True
+        try:
+            if self.document().pageSize() != self._page_size:
+                self.document().setPageSize(self._page_size)
 
-        total_height = self._page_count * self.PAGE_HEIGHT
-        self.setMinimumHeight(int(total_height + 80))
+            if self.lineWrapColumnOrWidth() != self.usable_page_width:
+                self.setLineWrapColumnOrWidth(self.usable_page_width)
 
+            self._page_count = max(1, self.document().pageCount())
+            self._update_viewport_margins()
+            self.viewport().update()
+        finally:
+            self._metrics_guard = False
+
+    def _update_viewport_margins(self):
         content_width = self.viewport().width()
         page_x = max(18, (content_width - self.PAGE_WIDTH) / 2)
-        side_pad = max(0, int(page_x + self.PAGE_MARGIN))
-        top_pad = int(24 + self.PAGE_MARGIN)
-        self.setViewportMargins(side_pad, top_pad, side_pad, top_pad)
-        self.viewport().update()
+        side_pad = max(0, int(page_x))
+        top_pad = 24
+        bottom_pad = 24
+        margins = (side_pad, top_pad, side_pad, bottom_pad)
+        if margins != self._last_viewport_margins:
+            self._last_viewport_margins = margins
+            self.setViewportMargins(*margins)
 
     def _keep_cursor_visible(self):
-        self.ensureCursorVisible()
+        cursor_rect = self.cursorRect().adjusted(0, -28, 0, 28)
+        viewport_rect = self.viewport().rect()
+        bar = self.verticalScrollBar()
+
+        if cursor_rect.bottom() > viewport_rect.bottom():
+            bar.setValue(bar.value() + (cursor_rect.bottom() - viewport_rect.bottom()))
+        elif cursor_rect.top() < viewport_rect.top():
+            bar.setValue(bar.value() - (viewport_rect.top() - cursor_rect.top()))
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self._sync_metrics()
+        self._schedule_metrics_sync()
 
     def paintEvent(self, event):
         painter = QPainter(self.viewport())
