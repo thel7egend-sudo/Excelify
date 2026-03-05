@@ -187,7 +187,6 @@ class WordStyleEditor(QWidget):
         text = editor.toPlainText()
         pos = cursor.position()
         candidate = f"{text[:pos]}\n{text[pos:]}"
-        newline_pos = pos + 1
 
         self._is_reflowing = True
         if self._text_fits(candidate, editor):
@@ -197,38 +196,17 @@ class WordStyleEditor(QWidget):
             self.textChanged.emit()
             return
 
-        split_at = self._fitting_index(candidate)
-        leading = candidate[:split_at]
-        trailing = candidate[split_at:]
-
-        editor.blockSignals(True)
-        editor.setPlainText(leading)
-        editor.blockSignals(False)
-
         if idx + 1 >= len(self._pages):
             self._append_page("")
 
         next_editor = self._pages[idx + 1].editor
-        next_text = next_editor.toPlainText()
-        next_editor.blockSignals(True)
-        next_editor.setPlainText(f"{trailing}{next_text}")
-        next_editor.blockSignals(False)
-
-        self._rebalance_from(idx)
         self._is_reflowing = False
 
-        if newline_pos <= len(leading):
-            current_cursor = editor.textCursor()
-            current_cursor.setPosition(newline_pos)
-            editor.setTextCursor(current_cursor)
-            editor.setFocus()
-            self._active_page_idx = idx
-        else:
-            next_cursor = next_editor.textCursor()
-            next_cursor.setPosition(newline_pos - len(leading))
-            next_editor.setTextCursor(next_cursor)
-            next_editor.setFocus()
-            self._active_page_idx = idx + 1
+        next_cursor = next_editor.textCursor()
+        next_cursor.setPosition(0)
+        next_editor.setTextCursor(next_cursor)
+        next_editor.setFocus()
+        self._active_page_idx = idx + 1
         self.textChanged.emit()
 
     def _fitting_index(self, text):
