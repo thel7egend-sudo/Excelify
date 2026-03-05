@@ -27,3 +27,12 @@ class SpellChecker:
             if not self.is_correct(word):
                 ranges.append((match.start(), match.end(), word))
         return ranges
+
+    def suggest(self, word, limit=5):
+        if not word or self._dictionary is None:
+            return []
+        try:
+            suggestions = self._dictionary.suggest(word.lower())
+        except Exception:
+            return []
+        return list(suggestions)[:limit]
