@@ -5,6 +5,8 @@ from docx.shared import Inches
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import (
     QColor,
+    QFont,
+    QFontDatabase,
     QFontMetrics,
     QKeyEvent,
     QMouseEvent,
@@ -702,6 +704,14 @@ class DocEditorPage(QWidget):
         super().__init__()
         self.document = document
         self.setProperty("theme", "theme-light")
+        self._font_categories = {
+            "Sans Serif": ["Segoe UI", "Arial", "Calibri", "Verdana", "Tahoma"],
+            "Serif": ["Times New Roman", "Georgia", "Cambria", "Garamond"],
+            "Monospace": ["Consolas", "Courier New", "Lucida Console"],
+            "Creative": ["Comic Sans MS", "Impact", "Trebuchet MS"],
+        }
+        self._active_font_family = "Segoe UI"
+        self._active_font_size = 14.0
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -717,6 +727,15 @@ class DocEditorPage(QWidget):
         placeholder_btn.setEnabled(False)
         placeholder_btn.setFixedHeight(32)
         ribbon_layout.addWidget(placeholder_btn)
+
+        font_family_label = QLabel("Font")
+        ribbon_layout.addWidget(font_family_label)
+
+        self.font_family_combo = QComboBox()
+        self.font_family_combo.setFixedHeight(32)
+        self._populate_font_families()
+        self.font_family_combo.currentTextChanged.connect(self._apply_font_family)
+        ribbon_layout.addWidget(self.font_family_combo)
 
         font_size_label = QLabel("Font Size")
         ribbon_layout.addWidget(font_size_label)
@@ -741,6 +760,9 @@ class DocEditorPage(QWidget):
         layout.addWidget(self.ribbon)
         layout.addWidget(self.editor)
 
+        self._apply_font_family(self.font_family_combo.currentText())
+        self._apply_font_size(self.font_size_combo.currentText())
+
         self.apply_grid_dark_mode(False)
 
     @property
@@ -759,15 +781,51 @@ class DocEditorPage(QWidget):
         if not size_text:
             return
         size = float(size_text)
+        self._active_font_size = size
         if not self.editor._pages:
             return
-        page_idx = min(max(0, self.editor._active_page_idx), len(self.editor._pages) - 1)
-        active_editor = self.editor._pages[page_idx].editor
-        cursor = active_editor.textCursor()
-        fmt = QTextCharFormat()
-        fmt.setFontPointSize(size)
-        cursor.mergeCharFormat(fmt)
-        active_editor.mergeCurrentCharFormat(fmt)
+        self._apply_editor_font_settings()
+
+    def _populate_font_families(self):
+        db = QFontDatabase()
+        available = set(db.families())
+
+        for category, families in self._font_categories.items():
+            for family in families:
+                if family not in available:
+                    continue
+                self.font_family_combo.addItem(f"{category} — {family}", family)
+
+        if self.font_family_combo.count() == 0:
+            self.font_family_combo.addItem("Default — Sans Serif", self._active_font_family)
+
+        current_idx = self.font_family_combo.findData(self._active_font_family)
+        self.font_family_combo.setCurrentIndex(max(0, current_idx))
+
+    def _apply_font_family(self, display_text):
+        del display_text
+        selected_family = self.font_family_combo.currentData()
+        if not selected_family:
+            return
+        self._active_font_family = selected_family
+        self._apply_editor_font_settings()
+
+    def _apply_editor_font_settings(self):
+        if not self.editor._pages:
+            return
+
+        self.editor._is_reflowing = True
+        try:
+            caret_state = self.editor._capture_caret_state()
+            for page in self.editor._pages:
+                page_font = QFont(self._active_font_family)
+                page_font.setPointSizeF(self._active_font_size)
+                page.editor.setFont(page_font)
+                page.editor.document().setDefaultFont(page_font)
+            self.editor._rebalance_from(0)
+            self.editor._restore_caret_state(caret_state)
+        finally:
+            self.editor._is_reflowing = False
 
     def _paginate_text(self, text):
         if not text:
