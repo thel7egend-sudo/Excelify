@@ -1,6 +1,6 @@
 from docx import Document as DocxDocument
 from docx.shared import Inches
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSizeF, Qt, Signal
 from PySide6.QtGui import QColor, QKeyEvent, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -34,6 +34,11 @@ class PageTextEdit(QTextEdit):
             return
         super().keyPressEvent(event)
 
+    def wheelEvent(self, event):
+        # Keep each page fixed like a printed sheet: wheel scrolling should
+        # scroll the outer document area, not create hidden scroll inside a page.
+        event.ignore()
+
 
 class PageWidget(QFrame):
     PAGE_WIDTH = 800
@@ -63,6 +68,7 @@ class PageWidget(QFrame):
         self.editor.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.editor.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.editor.setLineWrapMode(QTextEdit.WidgetWidth)
+        self.editor.setFixedHeight(self.usable_page_height)
         layout.addWidget(self.editor)
 
     @property
@@ -156,15 +162,11 @@ class WordStyleEditor(QWidget):
         probe.setDefaultFont(self._pages[0].editor.font())
         probe.setDocumentMargin(0)
         probe.setTextWidth(self.usable_page_width)
+        probe.setPageSize(QSizeF(self.usable_page_width, self.usable_page_height))
         probe.setPlainText(text)
-        layout = probe.documentLayout()
-        block = probe.begin()
-        epsilon = 0.01
-        while block.isValid():
-            if layout.blockBoundingRect(block).bottom() > self.usable_page_height + epsilon:
-                return False
-            block = block.next()
-        return True
+        doc_height = probe.documentLayout().documentSize().height()
+        # Small epsilon avoids allowing partially clipped final lines.
+        return doc_height <= (self.usable_page_height - 0.5)
 
     def _handle_return_pressed(self, page):
         if self._is_reflowing or page not in self._pages:
