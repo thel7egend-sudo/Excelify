@@ -1,12 +1,25 @@
+import re
+
 from docx import Document as DocxDocument
 from docx.shared import Inches
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QFontMetrics, QKeyEvent, QMouseEvent, QTextCursor, QTextDocument, QTextOption
+from PySide6.QtGui import (
+    QColor,
+    QFontMetrics,
+    QKeyEvent,
+    QMouseEvent,
+    QTextCharFormat,
+    QTextCursor,
+    QTextDocument,
+    QTextOption,
+)
 from PySide6.QtWidgets import (
+    QComboBox,
     QFileDialog,
     QFrame,
     QGraphicsDropShadowEffect,
     QHBoxLayout,
+    QLabel,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -15,13 +28,23 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from spell_checker import SpellChecker
+
 
 class PageTextEdit(QTextEdit):
     backspace_at_start = Signal()
     return_pressed = Signal()
+    word_boundary_typed = Signal()
+
+    _WORD_BOUNDARY_CHARS = set(" \t\n.,!?;:\"()[]{}")
+
+    def __init__(self):
+        super().__init__()
+        self._spell_context_handler = None
 
     def keyPressEvent(self, event: QKeyEvent):
         if event.key() in (Qt.Key_Return, Qt.Key_Enter) and event.modifiers() == Qt.NoModifier:
+            self.word_boundary_typed.emit()
             self.return_pressed.emit()
             return
 
@@ -33,6 +56,8 @@ class PageTextEdit(QTextEdit):
             self.backspace_at_start.emit()
             return
         super().keyPressEvent(event)
+        if event.modifiers() == Qt.NoModifier and event.text() in self._WORD_BOUNDARY_CHARS:
+            self.word_boundary_typed.emit()
 
     def mousePressEvent(self, event: QMouseEvent):
         cursor = self.cursorForPosition(event.pos())
@@ -46,6 +71,15 @@ class PageTextEdit(QTextEdit):
         # Keep each page fixed like a printed sheet: wheel scrolling should
         # scroll the outer document area, not create hidden scroll inside a page.
         event.ignore()
+
+    def set_spell_context_handler(self, handler):
+        self._spell_context_handler = handler
+
+    def contextMenuEvent(self, event):
+        menu = self.createStandardContextMenu()
+        if self._spell_context_handler is not None:
+            self._spell_context_handler(self, event, menu)
+        menu.exec(event.globalPos())
 
 
 class PageWidget(QFrame):
@@ -112,6 +146,10 @@ class WordStyleEditor(QWidget):
         self._is_reflowing = False
         self._active_page_idx = 0
         self._pages = []
+        self._word_regex = re.compile(r"[A-Za-z']+")
+        self._block_spelling_ranges = {}
+        self._page_text_lengths = {}
+        self._spell_checker = SpellChecker()
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -148,14 +186,160 @@ class WordStyleEditor(QWidget):
         text_option.setWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)
         page.editor.document().setDefaultTextOption(text_option)
         page.editor.setPlainText(text)
+        page.editor.set_spell_context_handler(self._show_spell_context_menu)
+        self._page_text_lengths[page.editor] = len(text)
         page.editor.textChanged.connect(lambda p=page: self._on_page_text_changed(p))
         page.editor.backspace_at_start.connect(lambda p=page: self._merge_with_previous(p))
         page.editor.return_pressed.connect(lambda p=page: self._handle_return_pressed(p))
+        page.editor.word_boundary_typed.connect(lambda p=page: self._check_word_before_cursor(p))
         page.editor.selectionChanged.connect(lambda p=page: self._track_active_page(p))
         page.editor.cursorPositionChanged.connect(lambda p=page: self._track_active_page(p))
         page.editor.cursorPositionChanged.connect(lambda p=page: self._ensure_page_cursor_visible(p))
         page.editor.verticalScrollBar().rangeChanged.connect(lambda *_args, e=page.editor: e.verticalScrollBar().setValue(0))
         return page
+
+    def _word_bounds_at_position(self, text, pos):
+        if not text:
+            return None
+        idx = min(max(0, pos), len(text) - 1)
+        if not re.match(r"[A-Za-z']", text[idx]):
+            if idx > 0 and re.match(r"[A-Za-z']", text[idx - 1]):
+                idx -= 1
+            else:
+                return None
+
+        start = idx
+        while start > 0 and re.match(r"[A-Za-z']", text[start - 1]):
+            start -= 1
+        end = idx + 1
+        while end < len(text) and re.match(r"[A-Za-z']", text[end]):
+            end += 1
+        return start, end
+
+    def _check_word_before_cursor(self, page):
+        if page not in self._pages:
+            return
+
+        editor = page.editor
+        cursor = editor.textCursor()
+        pos = cursor.position()
+        text = editor.toPlainText()
+        if pos <= 0 or pos > len(text):
+            return
+
+        bounds = self._word_bounds_at_position(text, pos - 1)
+        if not bounds:
+            return
+
+        word_start, word_end = bounds
+        word = text[word_start:word_end]
+        if not word:
+            return
+
+        block = cursor.block()
+        block_number = block.blockNumber()
+        editor_ranges = self._block_spelling_ranges.setdefault(editor, {})
+        ranges = editor_ranges.setdefault(block_number, [])
+        ranges = [r for r in ranges if not (r[0] == word_start and r[1] == word_end)]
+        if not self._spell_checker.is_correct(word):
+            ranges.append((word_start, word_end))
+        if ranges:
+            editor_ranges[block_number] = ranges
+        else:
+            editor_ranges.pop(block_number, None)
+        self._refresh_spell_underlines(editor)
+
+    def _full_spell_check_page(self, page):
+        if page not in self._pages:
+            return
+
+        editor = page.editor
+        block_ranges = {}
+        block = editor.document().firstBlock()
+        while block.isValid():
+            local_ranges = []
+            for match in self._word_regex.finditer(block.text()):
+                word = match.group(0)
+                if not self._spell_checker.is_correct(word):
+                    start = block.position() + match.start()
+                    end = block.position() + match.end()
+                    local_ranges.append((start, end))
+            if local_ranges:
+                block_ranges[block.blockNumber()] = local_ranges
+            block = block.next()
+
+        self._block_spelling_ranges[editor] = block_ranges
+        self._refresh_spell_underlines(editor)
+
+    def _spell_check_current_block(self, page):
+        if page not in self._pages:
+            return
+
+        editor = page.editor
+        cursor = editor.textCursor()
+        block = cursor.block()
+        block_number = block.blockNumber()
+        block_start = block.position()
+
+        local_ranges = []
+        for match in self._word_regex.finditer(block.text()):
+            word = match.group(0)
+            if not self._spell_checker.is_correct(word):
+                local_ranges.append((block_start + match.start(), block_start + match.end()))
+
+        editor_ranges = self._block_spelling_ranges.setdefault(editor, {})
+        if local_ranges:
+            editor_ranges[block_number] = local_ranges
+        else:
+            editor_ranges.pop(block_number, None)
+        self._refresh_spell_underlines(editor)
+
+    def _refresh_spell_underlines(self, editor):
+        selections = []
+        fmt = QTextCharFormat()
+        fmt.setUnderlineStyle(QTextCharFormat.SpellCheckUnderline)
+        fmt.setUnderlineColor(Qt.red)
+        for ranges in self._block_spelling_ranges.get(editor, {}).values():
+            for start, end in ranges:
+                cursor = editor.textCursor()
+                cursor.setPosition(start)
+                cursor.setPosition(end, QTextCursor.KeepAnchor)
+                sel = QTextEdit.ExtraSelection()
+                sel.cursor = cursor
+                sel.format = fmt
+                selections.append(sel)
+        editor.setExtraSelections(selections)
+
+    def _replace_word_in_editor(self, editor, start, end, replacement):
+        cursor = editor.textCursor()
+        cursor.setPosition(start)
+        cursor.setPosition(end, QTextCursor.KeepAnchor)
+        cursor.insertText(replacement)
+        editor.setTextCursor(cursor)
+
+    def _show_spell_context_menu(self, editor, event, menu):
+        click_cursor = editor.cursorForPosition(event.pos())
+        text = editor.toPlainText()
+        bounds = self._word_bounds_at_position(text, click_cursor.position())
+        if not bounds:
+            return
+
+        word_start, word_end = bounds
+        word = text[word_start:word_end]
+        if self._spell_checker.is_correct(word):
+            return
+
+        suggestions = self._spell_checker.suggest(word, limit=5)
+        if suggestions:
+            for suggestion in suggestions[::-1]:
+                action = menu.addAction(suggestion)
+                action.triggered.connect(
+                    lambda _checked=False, s=suggestion, st=word_start, en=word_end, e=editor: self._replace_word_in_editor(e, st, en, s)
+                )
+
+        ignore_action = menu.addAction("(ignore)")
+        ignore_action.triggered.connect(lambda: None)
+        menu.addSeparator()
 
     def _ensure_page_cursor_visible(self, page):
         if page not in self._pages:
@@ -179,6 +363,8 @@ class WordStyleEditor(QWidget):
         if len(self._pages) <= 1:
             return
         page = self._pages.pop(idx)
+        self._block_spelling_ranges.pop(page.editor, None)
+        self._page_text_lengths.pop(page.editor, None)
         self.pages_layout.removeWidget(page)
         page.deleteLater()
 
@@ -437,6 +623,15 @@ class WordStyleEditor(QWidget):
         self._restore_caret_state(caret_state)
         for pg in self._pages:
             pg.editor.verticalScrollBar().setValue(0)
+
+        current_len = len(page.editor.toPlainText())
+        previous_len = self._page_text_lengths.get(page.editor, current_len)
+        if abs(current_len - previous_len) > 120:
+            self._full_spell_check_page(page)
+        else:
+            self._spell_check_current_block(page)
+        self._page_text_lengths[page.editor] = current_len
+
         self.textChanged.emit()
 
     def toPlainText(self):
@@ -448,10 +643,15 @@ class WordStyleEditor(QWidget):
             self.pages_layout.removeWidget(page)
             page.deleteLater()
         self._pages = []
+        self._block_spelling_ranges = {}
+        self._page_text_lengths = {}
 
         self._append_page(text or "")
         self._rebalance_from(0)
         self._is_reflowing = False
+
+        for page in self._pages:
+            self._full_spell_check_page(page)
 
         if self._pages:
             self._pages[0].editor.moveCursor(QTextCursor.Start)
@@ -518,6 +718,16 @@ class DocEditorPage(QWidget):
         placeholder_btn.setFixedHeight(32)
         ribbon_layout.addWidget(placeholder_btn)
 
+        font_size_label = QLabel("Font Size")
+        ribbon_layout.addWidget(font_size_label)
+
+        self.font_size_combo = QComboBox()
+        self.font_size_combo.addItems(["10", "11", "12", "14", "16", "18", "20", "24"])
+        self.font_size_combo.setCurrentText("14")
+        self.font_size_combo.setFixedHeight(32)
+        self.font_size_combo.currentTextChanged.connect(self._apply_font_size)
+        ribbon_layout.addWidget(self.font_size_combo)
+
         ribbon_layout.addStretch()
 
         self.export_btn = QPushButton("Export to Docs")
@@ -544,6 +754,20 @@ class DocEditorPage(QWidget):
     def _on_text_changed(self):
         self.document.content = self.editor.toPlainText()
         self.document_changed.emit()
+
+    def _apply_font_size(self, size_text):
+        if not size_text:
+            return
+        size = float(size_text)
+        if not self.editor._pages:
+            return
+        page_idx = min(max(0, self.editor._active_page_idx), len(self.editor._pages) - 1)
+        active_editor = self.editor._pages[page_idx].editor
+        cursor = active_editor.textCursor()
+        fmt = QTextCharFormat()
+        fmt.setFontPointSize(size)
+        cursor.mergeCharFormat(fmt)
+        active_editor.mergeCurrentCharFormat(fmt)
 
     def _paginate_text(self, text):
         if not text:
