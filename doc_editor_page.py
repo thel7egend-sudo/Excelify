@@ -84,14 +84,25 @@ class WordStyleEditor(QWidget):
     textChanged = Signal()
 
     PAGE_GAP = 48
-    LIGHT_WORKSPACE = "#dfe1e5"
-    DARK_WORKSPACE = "#13161c"
+    THEME_TOKENS = {
+        "theme-light": {
+            "workspace": "#dfe1e5",
+            "page_text": "#111827",
+            "page_bg": "#ffffff",
+            "page_border": "#d8dde6",
+        },
+        "theme-dark": {
+            "workspace": "#13161c",
+            "page_text": "#eaeaea",
+            "page_bg": "#1d1f24",
+            "page_border": "rgba(255,255,255,0.05)",
+        },
+    }
 
     def __init__(self, initial_text=""):
         super().__init__()
         self._is_reflowing = False
         self._active_page_idx = 0
-        self._workspace_color = self.LIGHT_WORKSPACE
         self._pages = []
 
         root = QVBoxLayout(self)
@@ -111,7 +122,7 @@ class WordStyleEditor(QWidget):
         self.scroll_area.setWidget(self.container)
         root.addWidget(self.scroll_area)
 
-        self._apply_theme(False)
+        self._apply_theme("theme-light")
         self.setPlainText(initial_text)
 
     @property
@@ -428,35 +439,41 @@ class WordStyleEditor(QWidget):
             self._pages[0].editor.moveCursor(QTextCursor.Start)
             self._pages[0].editor.setFocus()
 
-    def _apply_theme(self, enabled: bool):
-        workspace = self.DARK_WORKSPACE if enabled else self.LIGHT_WORKSPACE
-        page_text_color = "#eaeaea" if enabled else "#111827"
-        page_bg = "#1d1f24" if enabled else "#ffffff"
-        page_border = "rgba(255,255,255,0.05)" if enabled else "#d8dde6"
+    def _apply_theme(self, theme_class: str):
+        tokens = self.THEME_TOKENS[theme_class]
+        self.setProperty("theme", theme_class)
+        self.container.setProperty("theme", theme_class)
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self.style().unpolish(self.container)
+        self.style().polish(self.container)
 
-        self.container.setStyleSheet(f"background: {workspace};")
         self.setStyleSheet(
-            f"""
-            QScrollArea {{
-                background: {workspace};
+            """
+            QWidget[theme="theme-light"],
+            QWidget[theme="theme-dark"] {
+                background: %(workspace)s;
+            }
+            QScrollArea {
                 border: none;
-            }}
-            QFrame#docPage {{
-                background: {page_bg};
-                border: 1px solid {page_border};
-            }}
-            QTextEdit {{
+                background: %(workspace)s;
+            }
+            QFrame#docPage {
+                background: %(page_bg)s;
+                border: 1px solid %(page_border)s;
+            }
+            QFrame#docPage QTextEdit {
                 background: transparent;
-                color: {page_text_color};
+                color: %(page_text)s;
                 border: none;
                 font-size: 14px;
-                overflow-wrap: break-word;
-            }}
+            }
             """
+            % tokens
         )
 
     def set_dark_mode(self, enabled: bool):
-        self._apply_theme(enabled)
+        self._apply_theme("theme-dark" if enabled else "theme-light")
 
 
 class DocEditorPage(QWidget):
@@ -466,6 +483,7 @@ class DocEditorPage(QWidget):
     def __init__(self, document):
         super().__init__()
         self.document = document
+        self.setProperty("theme", "theme-light")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -596,32 +614,37 @@ class DocEditorPage(QWidget):
         QMessageBox.information(self, "Export Complete", "Word document exported successfully.")
 
     def apply_grid_dark_mode(self, enabled: bool):
-        if not enabled:
-            self.setStyleSheet(
-                """
-                QWidget {
-                    background: #f7f8fa;
-                    color: #111827;
-                }
-                QWidget#docRibbon {
-                    background-color: #f9fafb;
-                    border-bottom: 1px solid #e5e7eb;
-                }
-            """
-            )
-            self.editor.set_dark_mode(False)
-            return
+        theme_class = "theme-dark" if enabled else "theme-light"
+        self.setProperty("theme", theme_class)
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self.editor.set_dark_mode(enabled)
 
-        self.editor.set_dark_mode(True)
+        theme_tokens = {
+            "theme-light": {
+                "bg": "#f7f8fa",
+                "text": "#111827",
+                "ribbon_bg": "#f9fafb",
+                "ribbon_border": "#e5e7eb",
+            },
+            "theme-dark": {
+                "bg": "#202124",
+                "text": "#eaeaea",
+                "ribbon_bg": "#252525",
+                "ribbon_border": "rgba(255, 255, 255, 0.06)",
+            },
+        }[theme_class]
+
         self.setStyleSheet(
             """
             QWidget {
-                background: #202124;
-                color: #eaeaea;
+                background: %(bg)s;
+                color: %(text)s;
             }
             QWidget#docRibbon {
-                background-color: #252525;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+                background-color: %(ribbon_bg)s;
+                border-bottom: 1px solid %(ribbon_border)s;
             }
-        """
+            """
+            % theme_tokens
         )
