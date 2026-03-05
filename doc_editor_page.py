@@ -1,7 +1,7 @@
 from docx import Document as DocxDocument
 from docx.shared import Inches
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QFontMetrics, QKeyEvent, QTextCursor, QTextDocument
+from PySide6.QtGui import QColor, QFontMetrics, QKeyEvent, QTextCursor, QTextDocument, QTextOption
 from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -125,6 +125,9 @@ class WordStyleEditor(QWidget):
     def _create_page(self, text=""):
         page = PageWidget()
         page.editor.document().setDocumentMargin(0)
+        text_option = page.editor.document().defaultTextOption()
+        text_option.setWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)
+        page.editor.document().setDefaultTextOption(text_option)
         page.editor.setPlainText(text)
         page.editor.textChanged.connect(lambda p=page: self._on_page_text_changed(p))
         page.editor.backspace_at_start.connect(lambda p=page: self._merge_with_previous(p))
@@ -229,6 +232,70 @@ class WordStyleEditor(QWidget):
 
         return max(1, split_at)
 
+    def _global_cursor_position(self, page_idx, local_pos):
+        clamped_page_idx = min(max(0, page_idx), len(self._pages) - 1)
+        prior_text_len = sum(len(self._pages[i].editor.toPlainText()) for i in range(clamped_page_idx))
+        current_len = len(self._pages[clamped_page_idx].editor.toPlainText())
+        return prior_text_len + max(0, min(local_pos, current_len))
+
+    def _position_from_global_offset(self, global_offset):
+        if not self._pages:
+            return 0, 0
+
+        remaining = max(0, global_offset)
+        for idx, page in enumerate(self._pages):
+            text_len = len(page.editor.toPlainText())
+            if remaining <= text_len or idx == len(self._pages) - 1:
+                return idx, min(remaining, text_len)
+            remaining -= text_len
+
+        last_idx = len(self._pages) - 1
+        return last_idx, len(self._pages[last_idx].editor.toPlainText())
+
+    def _capture_caret_state(self):
+        if not self._pages:
+            return None
+
+        focus_widget = self.focusWidget()
+        if isinstance(focus_widget, PageTextEdit) and focus_widget.parent() in self._pages:
+            editor = focus_widget
+            page_idx = self._pages.index(focus_widget.parent())
+        else:
+            page_idx = min(max(0, self._active_page_idx), len(self._pages) - 1)
+            editor = self._pages[page_idx].editor
+
+        cursor = editor.textCursor()
+        return {
+            "anchor": self._global_cursor_position(page_idx, cursor.anchor()),
+            "position": self._global_cursor_position(page_idx, cursor.position()),
+            "had_focus": editor.hasFocus(),
+        }
+
+    def _restore_caret_state(self, caret_state):
+        if not caret_state or not self._pages:
+            return
+
+        anchor_idx, anchor_local = self._position_from_global_offset(caret_state["anchor"])
+        pos_idx, pos_local = self._position_from_global_offset(caret_state["position"])
+
+        target_editor = self._pages[pos_idx].editor
+        cursor = target_editor.textCursor()
+
+        if anchor_idx == pos_idx:
+            cursor.setPosition(anchor_local)
+            if anchor_local != pos_local:
+                cursor.setPosition(pos_local, QTextCursor.KeepAnchor)
+            else:
+                cursor.setPosition(pos_local)
+        else:
+            cursor.setPosition(pos_local)
+
+        target_editor.setTextCursor(cursor)
+        target_editor.ensureCursorVisible()
+        if caret_state.get("had_focus", True):
+            target_editor.setFocus()
+        self._active_page_idx = pos_idx
+
     def _rebalance_from(self, start_idx):
         idx = max(0, start_idx)
         while idx < len(self._pages):
@@ -241,7 +308,6 @@ class WordStyleEditor(QWidget):
             split_at = self._fitting_index(text)
             leading = text[:split_at]
             trailing = text[split_at:]
-            old_pos = current.textCursor().position()
 
             current.blockSignals(True)
             current.setPlainText(leading)
@@ -255,17 +321,6 @@ class WordStyleEditor(QWidget):
             next_editor.blockSignals(True)
             next_editor.setPlainText(trailing + next_text)
             next_editor.blockSignals(False)
-
-            if old_pos > len(leading):
-                cursor = next_editor.textCursor()
-                cursor.setPosition(old_pos - len(leading))
-                next_editor.setTextCursor(cursor)
-                next_editor.setFocus()
-                self._active_page_idx = idx + 1
-            else:
-                cursor = current.textCursor()
-                cursor.setPosition(old_pos)
-                current.setTextCursor(cursor)
 
         self._pull_text_up(max(0, start_idx - 1))
 
@@ -323,6 +378,10 @@ class WordStyleEditor(QWidget):
 
         prev_text = prev_editor.toPlainText()
         this_text = this_editor.toPlainText()
+        caret_state = self._capture_caret_state()
+        if caret_state:
+            caret_state["position"] = self._global_cursor_position(idx - 1, len(prev_text))
+            caret_state["anchor"] = caret_state["position"]
 
         self._is_reflowing = True
         prev_editor.blockSignals(True)
@@ -331,11 +390,7 @@ class WordStyleEditor(QWidget):
         self._remove_page(idx)
         self._rebalance_from(idx - 1)
         self._is_reflowing = False
-
-        cursor = prev_editor.textCursor()
-        cursor.setPosition(len(prev_text))
-        prev_editor.setTextCursor(cursor)
-        prev_editor.setFocus()
+        self._restore_caret_state(caret_state)
 
         self.textChanged.emit()
 
@@ -346,9 +401,11 @@ class WordStyleEditor(QWidget):
             return
 
         self._is_reflowing = True
+        caret_state = self._capture_caret_state()
         idx = self._pages.index(page)
         self._rebalance_from(idx)
         self._is_reflowing = False
+        self._restore_caret_state(caret_state)
         for pg in self._pages:
             pg.editor.verticalScrollBar().setValue(0)
         self.textChanged.emit()
@@ -393,6 +450,7 @@ class WordStyleEditor(QWidget):
                 color: {page_text_color};
                 border: none;
                 font-size: 14px;
+                overflow-wrap: break-word;
             }}
             """
         )
