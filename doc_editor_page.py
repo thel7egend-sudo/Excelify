@@ -1,7 +1,7 @@
 from docx import Document as DocxDocument
 from docx.shared import Inches
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QFontMetrics, QKeyEvent, QTextCursor, QTextDocument, QTextOption
+from PySide6.QtGui import QColor, QFontMetrics, QKeyEvent, QMouseEvent, QTextCursor, QTextDocument, QTextOption
 from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -33,6 +33,14 @@ class PageTextEdit(QTextEdit):
             self.backspace_at_start.emit()
             return
         super().keyPressEvent(event)
+
+    def mousePressEvent(self, event: QMouseEvent):
+        cursor = self.cursorForPosition(event.pos())
+        doc_height = self.document().documentLayout().documentSize().height()
+        if event.pos().y() >= doc_height:
+            cursor.movePosition(QTextCursor.End)
+        self.setTextCursor(cursor)
+        super().mousePressEvent(event)
 
     def wheelEvent(self, event):
         # Keep each page fixed like a printed sheet: wheel scrolling should
@@ -145,8 +153,15 @@ class WordStyleEditor(QWidget):
         page.editor.return_pressed.connect(lambda p=page: self._handle_return_pressed(p))
         page.editor.selectionChanged.connect(lambda p=page: self._track_active_page(p))
         page.editor.cursorPositionChanged.connect(lambda p=page: self._track_active_page(p))
+        page.editor.cursorPositionChanged.connect(lambda p=page: self._ensure_page_cursor_visible(p))
         page.editor.verticalScrollBar().rangeChanged.connect(lambda *_args, e=page.editor: e.verticalScrollBar().setValue(0))
         return page
+
+    def _ensure_page_cursor_visible(self, page):
+        if page not in self._pages:
+            return
+        cursor_center = page.editor.mapTo(self.container, page.editor.cursorRect().center())
+        self.scroll_area.ensureVisible(cursor_center.x(), cursor_center.y(), 24, 48)
 
     def _append_page(self, text=""):
         page = self._create_page(text)
@@ -206,6 +221,7 @@ class WordStyleEditor(QWidget):
         if self._text_fits(candidate, editor):
             cursor.insertBlock()
             editor.setTextCursor(cursor)
+            self._ensure_page_cursor_visible(page)
             self._is_reflowing = False
             self.textChanged.emit()
             return
@@ -220,6 +236,7 @@ class WordStyleEditor(QWidget):
         next_cursor.setPosition(0)
         next_editor.setTextCursor(next_cursor)
         next_editor.setFocus()
+        self._ensure_page_cursor_visible(self._pages[idx + 1])
         self._active_page_idx = idx + 1
         self.textChanged.emit()
 
@@ -303,6 +320,7 @@ class WordStyleEditor(QWidget):
 
         target_editor.setTextCursor(cursor)
         target_editor.ensureCursorVisible()
+        self._ensure_page_cursor_visible(self._pages[pos_idx])
         if caret_state.get("had_focus", True):
             target_editor.setFocus()
         self._active_page_idx = pos_idx
