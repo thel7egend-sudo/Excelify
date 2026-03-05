@@ -1,7 +1,7 @@
 from docx import Document as DocxDocument
 from docx.shared import Inches
-from PySide6.QtCore import QSizeF, Qt, Signal
-from PySide6.QtGui import QColor, QKeyEvent, QTextCursor, QTextDocument
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QColor, QFontMetrics, QKeyEvent, QTextCursor, QTextDocument
 from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
@@ -157,16 +157,22 @@ class WordStyleEditor(QWidget):
         if page in self._pages:
             self._active_page_idx = self._pages.index(page)
 
-    def _text_fits(self, text):
+    def _text_fits(self, text, editor=None):
+        if not self._pages:
+            return True
+
+        source_editor = editor or self._pages[0].editor
         probe = QTextDocument()
-        probe.setDefaultFont(self._pages[0].editor.font())
+        probe.setDefaultFont(source_editor.font())
         probe.setDocumentMargin(0)
+        probe.setDefaultTextOption(source_editor.document().defaultTextOption())
         probe.setTextWidth(self.usable_page_width)
-        probe.setPageSize(QSizeF(self.usable_page_width, self.usable_page_height))
         probe.setPlainText(text)
         doc_height = probe.documentLayout().documentSize().height()
-        # Small epsilon avoids allowing partially clipped final lines.
-        return doc_height <= (self.usable_page_height - 0.5)
+
+        line_spacing = QFontMetrics(source_editor.font()).lineSpacing()
+        max_height = max(0.0, self.usable_page_height - line_spacing)
+        return doc_height <= max_height
 
     def _handle_return_pressed(self, page):
         if self._is_reflowing or page not in self._pages:
@@ -181,20 +187,22 @@ class WordStyleEditor(QWidget):
         text = editor.toPlainText()
         pos = cursor.position()
         candidate = f"{text[:pos]}\n{text[pos:]}"
+        newline_pos = pos + 1
 
         self._is_reflowing = True
-        if self._text_fits(candidate):
+        if self._text_fits(candidate, editor):
             cursor.insertBlock()
             editor.setTextCursor(cursor)
             self._is_reflowing = False
             self.textChanged.emit()
             return
 
-        before = text[:pos]
-        after = text[pos:]
+        split_at = self._fitting_index(candidate)
+        leading = candidate[:split_at]
+        trailing = candidate[split_at:]
 
         editor.blockSignals(True)
-        editor.setPlainText(before)
+        editor.setPlainText(leading)
         editor.blockSignals(False)
 
         if idx + 1 >= len(self._pages):
@@ -203,16 +211,24 @@ class WordStyleEditor(QWidget):
         next_editor = self._pages[idx + 1].editor
         next_text = next_editor.toPlainText()
         next_editor.blockSignals(True)
-        next_editor.setPlainText(f"\n{after}{next_text}")
+        next_editor.setPlainText(f"{trailing}{next_text}")
         next_editor.blockSignals(False)
 
         self._rebalance_from(idx)
         self._is_reflowing = False
 
-        next_cursor = next_editor.textCursor()
-        next_cursor.setPosition(1)
-        next_editor.setTextCursor(next_cursor)
-        next_editor.setFocus()
+        if newline_pos <= len(leading):
+            current_cursor = editor.textCursor()
+            current_cursor.setPosition(newline_pos)
+            editor.setTextCursor(current_cursor)
+            editor.setFocus()
+            self._active_page_idx = idx
+        else:
+            next_cursor = next_editor.textCursor()
+            next_cursor.setPosition(newline_pos - len(leading))
+            next_editor.setTextCursor(next_cursor)
+            next_editor.setFocus()
+            self._active_page_idx = idx + 1
         self.textChanged.emit()
 
     def _fitting_index(self, text):
